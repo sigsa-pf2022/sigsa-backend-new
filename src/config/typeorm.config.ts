@@ -6,6 +6,9 @@ import {
 
 export default class TypeOrmConfig {
   static getOrmConfig(configService: ConfigService): TypeOrmModuleOptions {
+    const url = __dirname.split('/');
+    url.pop()
+    const dir = url.join('/');
     return {
       type: 'mysql',
       host: configService.get('DB_HOST'),
@@ -13,7 +16,7 @@ export default class TypeOrmConfig {
       username: configService.get('DB_USERNAME'),
       password: configService.get('DB_PASSWORD'),
       database: 'sigsa_db',
-      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      entities: [dir + '/**/*.entity{.ts,.js}'],
       synchronize: true,
       logging: true,
       // dropSchema: true,
