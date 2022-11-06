@@ -7,15 +7,13 @@ import { MailService } from './mail.service';
 @Module({
   imports: [
     MailerModule.forRoot({
-      // transport: 'smtps://user@example.com:topsecret@smtp.example.com',
-      // or
       transport: {
-        host: 'smtp.sendgrid.net',
+        host: process.env.MAILER_HOST,
         port: 465,
         secure: true,
         auth: {
-          user: 'apikey',
-          pass: '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',
+          user: process.env.MAILER_USER,
+          pass: process.env.MAILER_PASSWORD,
         },
       },
       defaults: {
@@ -23,7 +21,7 @@ import { MailService } from './mail.service';
       },
       template: {
         dir: join(__dirname, 'templates'),
-        adapter: new HandlebarsAdapter(), // or new PugAdapter() or new EjsAdapter()
+        adapter: new HandlebarsAdapter(), 
         options: {
           strict: true,
         },
