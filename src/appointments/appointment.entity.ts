@@ -1,21 +1,25 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Professional } from '../professionals/professional.entity';
+import { User } from '../users/user.entity';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({ name: 'appointments' })
 export class Appointment {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column()
-  doctor: string;
+  @ManyToOne(() => Professional, (professional) => professional.appointments)
+  @JoinColumn()
+  doctor: Professional;
 
-  //   @Column({ type: 'datetime' })
-  //   date: Date;
+  @Column({ type: 'datetime' })
+  date: Date;
 
   @Column()
   description: string;
 
-  @Column()
-  owner: string;
+  @ManyToOne(() => User)
+  @JoinColumn()
+  createdBy: User;
 
   @Column({ default: () => "'created'" })
   status: string;

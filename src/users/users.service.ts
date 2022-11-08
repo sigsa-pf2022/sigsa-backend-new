@@ -5,7 +5,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { User } from './user.entity';
 import { hashSync } from 'bcrypt';
 import { ValidateUserDto } from './dto/validate-user.dto';
-import * as crypto from 'crypto';
 import { random } from './utils/random-number';
 
 @Injectable()
@@ -51,7 +50,7 @@ export class UsersService {
     return {
       user,
       isCodeCorrect:
-        user.verificationCode === Number(validateUserDto.veficationCode),
+        user.verificationCode === Number(validateUserDto.verificationCode),
     };
   }
 

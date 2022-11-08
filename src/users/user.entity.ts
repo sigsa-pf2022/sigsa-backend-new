@@ -2,10 +2,10 @@ import {
   Column,
   Entity,
   ManyToMany,
-  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { FamilyGroup } from 'src/family-groups/entities/family-group.entity';
+import { FamilyGroup } from '../family-groups/entities/family-group.entity';
+import { Role } from '../roles/enums/role.enum';
 
 @Entity({ name: 'users' })
 export class User {
@@ -23,6 +23,9 @@ export class User {
 
   @Column({ type: 'datetime' })
   birthday: Date;
+
+  @Column({ unique: true })
+  dni: string;
 
   @Column({ unique: true })
   email: string;
@@ -49,15 +52,16 @@ export class User {
   @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 
-  @OneToMany(() => FamilyGroup, (familyGroup) => familyGroup.createdBy, {
-    nullable: true,
-    cascade: ['insert', 'update'],
-  })
-  ownedFamilyGroups: FamilyGroup[];
-
   @ManyToMany(() => FamilyGroup, (familyGroup) => familyGroup.members, {
     nullable: true,
     cascade: ['insert', 'update'],
   })
   memberFamilyGroups: FamilyGroup[];
+
+  @Column({
+    type: 'enum',
+    enum: Role,
+    default: Role.User,
+  })
+  role: Role;
 }

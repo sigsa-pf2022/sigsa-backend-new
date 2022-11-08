@@ -8,7 +8,7 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from 'src/users/user.entity';
+import { User } from '../../users/user.entity';
 import { Dependent } from './dependent.entity';
 
 @Entity({ name: 'family_group' })
@@ -23,7 +23,7 @@ export class FamilyGroup {
   @JoinColumn()
   dependent: Dependent;
 
-  @ManyToOne(() => User, (user) => user.ownedFamilyGroups)
+  @ManyToOne(() => User)
   @JoinColumn()
   createdBy: User;
 
