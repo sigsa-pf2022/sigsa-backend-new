@@ -1,4 +1,4 @@
-import { Column, Entity, OneToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { State } from './state.entity';
 
 @Entity({ name: 'cities' })
@@ -9,7 +9,8 @@ export class City {
   @Column()
   name: string;
 
-  @OneToOne(() => State)
+  @ManyToOne(() => State)
+  @JoinColumn()
   state: State;
 
   @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })

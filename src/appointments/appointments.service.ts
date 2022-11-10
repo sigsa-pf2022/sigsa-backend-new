@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Professional } from 'src/professionals/professional.entity';
+import { Professionals } from 'src/professionals/entities/my-professional.entity';
+import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { User } from 'src/users/user.entity';
 import { Repository } from 'typeorm';
 import { Appointment } from './appointment.entity';
@@ -13,22 +14,42 @@ export class AppointmentsService {
     private appointmentRepository: Repository<Appointment>,
   ) {}
 
-  createAppointment(
+  createAppointmentWithProfessionalUser(
     appointment: CreateAppointmentDTO,
     user: User,
-    doctor: Professional,
+    professional: ProfessionalUser,
   ) {
     const newAppointment = this.appointmentRepository.create({
       createdBy: user,
-      doctor,
+      date: appointment.date,
+      description: appointment.comments,
+      professional,
+    });
+    return this.appointmentRepository.save(newAppointment);
+  }
+
+  async createAppointmentWithMyProfessional(
+    appointment: CreateAppointmentDTO,
+    user: User,
+    myProfessional: Professionals,
+  ) {
+    const newAppointment = this.appointmentRepository.create({
+      createdBy: user,
+      myProfessional,
       date: appointment.date,
       description: appointment.comments,
     });
     return this.appointmentRepository.save(newAppointment);
   }
 
-  getAppointments() {
-    return this.appointmentRepository.find();
+  getAppointmentsByUser(user: User) {
+    return this.appointmentRepository.find({
+      where: { createdBy: user },
+      relations: {
+        myProfessional:true,
+        professional: true
+      }
+    });
   }
 
   getAppointmentById(id: number) {

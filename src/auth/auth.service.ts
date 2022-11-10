@@ -16,29 +16,29 @@ export class AuthService {
     if (!user) {
       throw new HttpException(
         {
-          message: 'El correo ingresado no ha sido validado',
+          message: 'Incorrecta combinación de email/contraseña',
           status: 'invalid',
         },
         HttpStatus.BAD_REQUEST,
-      );
-    } else {
-      if (compareSync(pass, user.password)) {
-        delete user.password;
-        if (!user.emailVerified) {
-          throw new HttpException(
-            {
-              message: 'El correo ingresado no ha sido validado',
-              status: 'email-not-verified',
-            },
-            HttpStatus.BAD_REQUEST,
-          );
-        } else {
-          return user;
-        }
+        );
+      } else {
+        if (compareSync(pass, user.password)) {
+          delete user.password;
+          if (!user.emailVerified) {
+            throw new HttpException(
+              {
+                message: 'El correo ingresado no ha sido validado',
+                status: 'email-not-verified',
+              },
+              HttpStatus.BAD_REQUEST,
+              );
+            } else {
+              return user;
+            }
       } else {
         throw new HttpException(
           {
-            message: 'El correo ingresado no ha sido validado',
+            message: 'Incorrecta combinación de email/contraseña',
             status: 'invalid',
           },
           HttpStatus.BAD_REQUEST,

@@ -4,5 +4,6 @@ export function random() {
   );
   const initial = Math.floor(Math.random() * 3);
   const subNumber = Number(String(number).substring(initial, initial + 6));
+  if (subNumber < 100000) random();
   return subNumber;
 }

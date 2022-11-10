@@ -22,7 +22,6 @@ export class FamilyGroupsService {
     members: User[],
   ) {
     const newDependent = await this.createDependent(createDependentDto);
-    console.log(members);
     const newFamilyGroup = this.familyGroupRepository.create({
       name,
       dependent: newDependent,

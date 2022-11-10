@@ -8,32 +8,35 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
-import { Professional } from './professional.entity';
+import { Professionals } from './entities/my-professional.entity';
+import { ProfessionalUser } from './entities/professional-user.entity';
 import { ProfessionalsService } from './professionals.service';
 
-@UseGuards(JwtAuthGuard)
 @Controller('professionals')
 export class ProfessionalsController {
   constructor(
     private readonly professionalsService: ProfessionalsService,
     private readonly userService: UsersService,
   ) {}
-  @Post('/create')
-  async createProfeessional(
+
+  @UseGuards(RoleGuard(Role.User))
+  @Post('/create-my-professional')
+  async createMyProfessional(
     @Body() createProfessionalDto: CreateProfessionalDto,
     @Req() request,
   ) {
     try {
       const user = await this.userService.getUserById(request.user.id);
-      const newFamilyGroup: Professional =
-        await this.professionalsService.createProfessional(
+      const newMyProfessional: Professionals =
+        await this.professionalsService.createMyProfessional(
           createProfessionalDto,
           user,
         );
-      return { status: HttpStatus.CREATED, id: newFamilyGroup.id };
+      return { status: HttpStatus.CREATED, id: newMyProfessional.id };
     } catch (error) {
       throw new HttpException(
         {
@@ -45,11 +48,27 @@ export class ProfessionalsController {
     }
   }
 
+  @UseGuards(RoleGuard(Role.User))
   @Get('/my-professionals')
   async getFamilyGroupsByUserId(@Req() request) {
     const user = await this.userService.getUserById(request.user.id);
     const professionals =
-      await this.professionalsService.getProfessionalsByUser(user);
+      await this.professionalsService.getMyProfessionalsByUser(user);
     return professionals;
   }
+
+  @UseGuards(RoleGuard(Role.Admin))
+  @UseGuards(RoleGuard(Role.User))
+  @Get('')
+  getProfessionals() {}
+
+  @Post('/create')
+  createProfessional(@Body() createProfessionalDto) {
+    console.log(createProfessionalDto);
+  }
+
+  // From Dashboard
+  @UseGuards(RoleGuard(Role.Admin))
+  @Post('/title')
+  createTitle(@Req() request, @Body() body) {}
 }

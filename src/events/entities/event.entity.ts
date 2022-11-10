@@ -1,0 +1,34 @@
+import { User } from 'src/users/user.entity';
+import { Column, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+
+export enum EventStatus {
+  CREATED = 'created',
+  SENDED = 'sended',
+  CONFIRMED = 'confirmed',
+  DISCARDED = 'discarded',
+}
+
+export abstract class Event {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @Column({ type: 'datetime' })
+  date: Date;
+
+  @ManyToOne(() => User)
+  @JoinColumn()
+  createdBy: User;
+
+  @Column({
+    type: 'enum',
+    enum: EventStatus,
+    default: EventStatus.CREATED,
+  })
+  status: string;
+
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  updatedAt: Date;
+
+  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+}
