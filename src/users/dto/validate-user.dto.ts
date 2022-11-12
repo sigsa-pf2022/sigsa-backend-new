@@ -14,5 +14,5 @@ export class ValidateUserDto {
   @MinLength(6)
   @MaxLength(6)
   @IsNumberString()
-  veficationCode: string;
+  verificationCode: string;
 }

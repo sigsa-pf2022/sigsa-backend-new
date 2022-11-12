@@ -8,6 +8,7 @@ export default class MailConfig {
   static getMailConfig(configService: ConfigService): MailerOptions {
     const url = __dirname.split('/');
     url.pop();
+    url.pop();
     url.push('mail');
     const dir = url.join('/');
     return {
