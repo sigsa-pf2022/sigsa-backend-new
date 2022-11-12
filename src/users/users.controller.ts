@@ -34,12 +34,6 @@ export class UsersController {
       if (existsUser) {
         throw new HttpException('Email invalido', HttpStatus.BAD_REQUEST);
       }
-      if (
-        !Object.values(Role).includes(createUserDto.role)
-        //&& createUserDto.role === 'admin'
-      ) {
-        throw new HttpException('Rol invalido', HttpStatus.BAD_REQUEST);
-      }
       const user = await this.userService.createUser(createUserDto);
       this.mailService.sendUserConfirmation(user);
       return {
@@ -54,23 +48,20 @@ export class UsersController {
   @Post('/validate')
   @UsePipes(ValidationPipe)
   async validateUser(@Body() validateUserDto: ValidateUserDto) {
-    try {
-      const { user, isCodeCorrect } = await this.userService.validateUser(
-        validateUserDto,
+    const { user, isCodeCorrect } = await this.userService.validateUser(
+      validateUserDto,
+    );
+    if (!isCodeCorrect) {
+      throw new HttpException(
+        {
+          status: 'invalid-code',
+          message: 'Codigo de verificacion de correo incorrecto.',
+        },
+        HttpStatus.BAD_REQUEST,
       );
-      if (!isCodeCorrect) {
-        throw new HttpException(
-          {
-            status: 'invalid-code',
-            message: 'Codigo de verificacion de correo incorrecto.',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+    } else {
       this.userService.updateValidateStatus(user.id);
       return { status: HttpStatus.OK, message: 'Codigo correcto' };
-    } catch (error) {
-      return error;
     }
   }
 
@@ -78,6 +69,17 @@ export class UsersController {
   @Get('')
   getUser(@Request() req) {
     return this.userService.getUserById(Number(req.user.id));
+  }
+
+  @Get('all')
+  async getUsers() {
+    console.log(await this.userService.getUsers())
+    return await this.userService.getUsers();
+  }
+
+  @Get('/status')
+  getUserStatus(@Request() req) {
+    return this.userService.getUserStatus(req.params.email);
   }
 
   @UseGuards(JwtAuthGuard)

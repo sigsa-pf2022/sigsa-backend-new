@@ -10,6 +10,8 @@ import { FamilyGroupsModule } from './family-groups/family-groups.module';
 import { ProfessionalsModule } from './professionals/professionals.module';
 import { ClinicsModule } from './clinics/clinics.module';
 import { GeographyModule } from './geography/geography.module';
+import { HttpModule } from '@nestjs/axios';
+import { EventsModule } from './events/events.module';
 
 @Module({
   imports: [
@@ -21,6 +23,8 @@ import { GeographyModule } from './geography/geography.module';
     ProfessionalsModule,
     ClinicsModule,
     GeographyModule,
+    HttpModule,
+    EventsModule,
   ],
 })
 export class AppModule {}

@@ -6,6 +6,7 @@ import { User } from './user.entity';
 import { hashSync } from 'bcrypt';
 import { ValidateUserDto } from './dto/validate-user.dto';
 import { random } from './utils/random-number';
+import { Role } from 'src/roles/enums/role.enum';
 
 @Injectable()
 export class UsersService {
@@ -37,9 +38,17 @@ export class UsersService {
     return user;
   }
 
+  async getUsers() {
+    return await this.userRepository.find();
+  }
+
   async createUser(createUserDto: CreateUserDto) {
     const password = hashSync(createUserDto.password, 10);
-    const newUser = this.userRepository.create({ ...createUserDto, password });
+    const newUser = this.userRepository.create({
+      ...createUserDto,
+      password,
+      role: Role.User,
+    });
     newUser.verificationCode = random();
     const user = await this.userRepository.save(newUser);
     return this.userRepository.save({ ...user, username: user.id + 100000 });
@@ -52,6 +61,10 @@ export class UsersService {
       isCodeCorrect:
         user.verificationCode === Number(validateUserDto.verificationCode),
     };
+  }
+  async getUserStatus(email: string) {
+    const user = await this.getUserByEmail(email);
+    return user.emailVerified;
   }
 
   updateValidateStatus(user_id: number) {
