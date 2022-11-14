@@ -1,9 +1,8 @@
 import {
   IsNotEmpty,
-  MinLength,
   IsEmail,
-  MaxLength,
-  IsNumberString,
+  Min,
+  Max,
 } from 'class-validator';
 export class ValidateUserDto {
   @IsNotEmpty()
@@ -11,8 +10,10 @@ export class ValidateUserDto {
   email: string;
 
   @IsNotEmpty()
-  @MinLength(6)
-  @MaxLength(6)
-  @IsNumberString()
-  verificationCode: string;
+  field: string;
+
+  @IsNotEmpty()
+  @Min(100000)
+  @Max(999999)
+  code: number;
 }

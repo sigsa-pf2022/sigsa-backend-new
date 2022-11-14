@@ -7,6 +7,7 @@ import { hashSync } from 'bcrypt';
 import { ValidateUserDto } from './dto/validate-user.dto';
 import { random } from './utils/random-number';
 import { Role } from 'src/roles/enums/role.enum';
+import { IUser } from './abstract/IUser.abstract.entity';
 
 @Injectable()
 export class UsersService {
@@ -59,8 +60,26 @@ export class UsersService {
     return {
       user,
       isCodeCorrect:
-        user.verificationCode === Number(validateUserDto.verificationCode),
+        user[validateUserDto.field] === Number(validateUserDto.code),
     };
+  }
+
+  async resetPassword(data, user: IUser) {
+    const password = hashSync(data.password, 10);
+    const updatedUser = await this.userRepository.update(
+      { id: user.id },
+      {
+        recoveryPasswordToken: null,
+        password: password,
+      },
+    );
+    console.log(updatedUser)
+    return updatedUser;
+  }
+
+  async setRecoveryPasswordToken(user: User) {
+    user.recoveryPasswordToken = random();
+    return await this.userRepository.save(user);
   }
   async getUserStatus(email: string) {
     const user = await this.getUserByEmail(email);

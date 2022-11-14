@@ -18,4 +18,17 @@ export class MailService {
       },
     });
   }
+
+  async sendUserRecoveryPassword(user: User, ) {
+    await this.mailerService.sendMail({
+      from: 'matiasbruno97@gmail.com',
+      to: user.email,
+      subject: 'Recuperar contraseña',
+      template: './recovery-password',
+      context: {
+        name: user.firstName,
+        code: user.recoveryPasswordToken,
+      },
+    });
+  }
 }

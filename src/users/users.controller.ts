@@ -9,10 +9,10 @@ import {
   Request,
   HttpException,
   HttpStatus,
+  Req,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { MailService } from 'src/mail/mail.service';
-import { Role } from 'src/roles/enums/role.enum';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ValidateUserDto } from './dto/validate-user.dto';
 import { UsersService } from './users.service';
@@ -45,11 +45,47 @@ export class UsersController {
     }
   }
 
+  @Post('/recovery-password-email')
+  async recoveryPasswordEmail(@Body() data) {
+    try {
+      const user = await this.userService.getUserByEmail(data.email);
+      if (!user) {
+        throw new HttpException('Email invalido', HttpStatus.BAD_REQUEST);
+      }
+      await this.userService
+        .setRecoveryPasswordToken(user)
+        .then(() => this.mailService.sendUserRecoveryPassword(user));
+      return {
+        status: HttpStatus.OK,
+        message: 'Email enviado',
+      };
+    } catch (error) {
+      return error;
+    }
+  }
+
+  @Post('/reset-password')
+  async resetPassword(@Body() data) {
+    try {
+      const user = await this.userService.getUserByEmail(data.email);
+      if (!user) {
+        throw new HttpException('Email invalido', HttpStatus.BAD_REQUEST);
+      }
+      await this.userService.resetPassword(data, user);
+      return {
+        status: HttpStatus.OK,
+        message: 'Contraseña reestablecida correctamente',
+      };
+    } catch (error) {
+      return error;
+    }
+  }
+
   @Post('/validate')
   @UsePipes(ValidationPipe)
   async validateUser(@Body() validateUserDto: ValidateUserDto) {
     const { user, isCodeCorrect } = await this.userService.validateUser(
-      validateUserDto,
+      validateUserDto
     );
     if (!isCodeCorrect) {
       throw new HttpException(
@@ -73,7 +109,6 @@ export class UsersController {
 
   @Get('all')
   async getUsers() {
-    console.log(await this.userService.getUsers())
     return await this.userService.getUsers();
   }
 
