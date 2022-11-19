@@ -1,12 +1,11 @@
+import { User } from '../../users/user.entity';
 import {
   Column,
   Entity,
   JoinColumn,
   ManyToOne,
-  OneToMany,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from 'src/users/user.entity';
 
 @Entity({ name: 'professionals' })
 export class Professionals {

@@ -20,16 +20,16 @@ export class UsersService {
     return await this.userRepository.findOne({ where: { email } });
   }
 
-  async getFullUserByUsername(username: number) {
-    return await this.userRepository.findOne({ where: { username } });
-  }
+  // async getFullUserByUsername(username: number) {
+  //   return await this.userRepository.findOne({ where: { username } });
+  // }
 
-  async getUserByUsername(username: number) {
-    return await this.userRepository.findOne({
-      select: { firstName: true, lastName: true, username: true },
-      where: { username },
-    });
-  }
+  // async getUserByUsername(username: number) {
+  //   return await this.userRepository.findOne({
+  //     select: { firstName: true, lastName: true, username: true },
+  //     where: { username },
+  //   });
+  // }
 
   async getUserById(id: number) {
     const user = await this.userRepository.findOne({
@@ -48,11 +48,10 @@ export class UsersService {
     const newUser = this.userRepository.create({
       ...createUserDto,
       password,
-      role: Role.User,
     });
     newUser.verificationCode = random();
     const user = await this.userRepository.save(newUser);
-    return this.userRepository.save({ ...user, username: user.id + 100000 });
+    return this.userRepository.save(user);
   }
 
   async validateUser(validateUserDto: ValidateUserDto) {

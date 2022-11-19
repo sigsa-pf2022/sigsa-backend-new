@@ -33,15 +33,36 @@ export class ProfessionalsController {
   async createMyProfessional(
     @Body() createProfessionalDto: CreateProfessionalDto,
     @Req() request,
-  ) {
-    try {
-      const user = await this.userService.getUserById(request.user.id);
-      const newMyProfessional: Professionals =
+    ) {
+      try {
+        const user = await this.userService.getUserById(request.user.id);
+        const newMyProfessional: Professionals =
         await this.professionalsService.createMyProfessional(
           createProfessionalDto,
           user,
+          );
+          return { status: HttpStatus.CREATED, id: newMyProfessional.id };
+        } catch (error) {
+          throw new HttpException(
+            {
+              message: 'No se pudo crear el profesional',
+              status: 'error',
+            },
+            HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('')
+  async createProfessional(
+    @Body() createProfessionalDto: CreateProfessionalDto,
+  ) {
+    try {
+      const newProfessional: ProfessionalUser =
+        await this.professionalsService.createProfessional(
+          createProfessionalDto,
         );
-      return { status: HttpStatus.CREATED, id: newMyProfessional.id };
+      return { status: HttpStatus.CREATED, id: newProfessional.id };
     } catch (error) {
       throw new HttpException(
         {
@@ -72,19 +93,19 @@ export class ProfessionalsController {
   async getProfessionalsSpecializations(@Req() request) {
     const res = await this.professionalsService.getProfessionalsSpecializations(
       request.query.page,
+      request.query.take,
     );
     return { data: res[0], count: res[1] };
   }
-  @Get('specializations/:id')
+  @Get('/specializations/all')
+  async getAllProfessionalsSpecializations() {
+    return await this.professionalsService.getAllProfessionalsSpecializations()
+  }
+  @Get('/specializations/:id')
   async getProfessionalsSpecializationById(@Req() request) {
     return await this.professionalsService.getProfessionalsSpecializationById(
       request.params.id,
     );
-  }
-
-  @Post('/create')
-  createProfessional(@Body() createProfessionalDto) {
-    console.log(createProfessionalDto);
   }
 
   // From Dashboard

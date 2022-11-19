@@ -1,21 +1,21 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, JoinTable, ManyToMany } from 'typeorm';
 import { ProfessionalSpecialization } from './professional-specialization.entity';
-import { State } from 'src/geography/entities/state.entity';
-import { IUser } from 'src/users/abstract/IUser.abstract.entity';
-import { Role } from 'src/roles/enums/role.enum';
+import { State } from '../../geography/entities/state.entity';
+import { IUser } from '../../users/abstract/IUser.abstract.entity';
+import { Role } from '../../roles/enums/role.enum';
 
 @Entity({ name: 'professionals_user' })
-export class ProfessionalUser extends IUser{
-  @ManyToOne(() => ProfessionalSpecialization, { nullable: true })
-  @JoinColumn()
-  specialization: ProfessionalSpecialization;
+export class ProfessionalUser extends IUser {
+  @ManyToMany(() => ProfessionalSpecialization)
+  @JoinTable()
+  specialization: ProfessionalSpecialization[];
 
-  @Column({name: "registration_number"})
-  registrationNumber: number;
+  @Column({ name: 'license_number' })
+  licenseNumber: number;
 
-  @ManyToOne(()=> State)
-  @JoinColumn()
-  jurisdiction: State
+  @ManyToMany(() => State)
+  @JoinTable()  
+  jurisdiction: State[];
 
   @Column({
     type: 'enum',

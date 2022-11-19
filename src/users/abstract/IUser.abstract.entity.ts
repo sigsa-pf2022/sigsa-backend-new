@@ -27,4 +27,21 @@ export abstract class IUser {
 
   @Column({ type: 'datetime' })
   birthday: Date;
+
+  @Column({
+    name: 'verification_code',
+    nullable: true,
+    unique: true,
+  })
+  verificationCode: number;
+
+  @Column({
+    name: 'recovery_password_token',
+    nullable: true,
+    unique: true,
+  })
+  recoveryPasswordToken: number;
+
+  @Column({ name: 'email_verified', default: false })
+  emailVerified: boolean;
 }

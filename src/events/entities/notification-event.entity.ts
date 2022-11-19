@@ -1,4 +1,4 @@
-import { User } from 'src/users/user.entity';
+import { User } from '../../users/user.entity';
 import { Column, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 
 export enum EventStatus {
@@ -8,7 +8,7 @@ export enum EventStatus {
   DISCARDED = 'discarded',
 }
 
-export abstract class Event {
+export abstract class NotificationEvent {
   @PrimaryGeneratedColumn()
   id: number;
 

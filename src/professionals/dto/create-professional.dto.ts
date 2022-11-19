@@ -1,4 +1,6 @@
-import { IsNotEmpty } from 'class-validator';
+import { IsEmail, IsNotEmpty } from 'class-validator';
+import { State } from 'src/geography/entities/state.entity';
+import { ProfessionalSpecialization } from '../entities/professional-specialization.entity';
 export class CreateProfessionalDto {
   @IsNotEmpty()
   firstName: string;
@@ -7,14 +9,27 @@ export class CreateProfessionalDto {
   lastName: string;
 
   @IsNotEmpty()
-  field: string;
+  birthday: Date;
 
   @IsNotEmpty()
-  clinic: string;
+  dni: string;
 
   @IsNotEmpty()
-  streetName: string;
+  @IsEmail()
+  email: string;
 
   @IsNotEmpty()
-  streetNumber: number;
+  gender: string;
+
+  @IsNotEmpty()
+  jurisdiction: State[];
+
+  @IsNotEmpty()
+  licenseNumber: number;
+
+  @IsNotEmpty()
+  password: string;
+  
+  @IsNotEmpty()
+  specialization: ProfessionalSpecialization[];
 }

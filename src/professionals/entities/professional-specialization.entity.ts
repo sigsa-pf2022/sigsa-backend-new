@@ -8,7 +8,7 @@ export class ProfessionalSpecialization {
   @Column({ unique: true })
   name: string;
 
-  @Column()
+  @Column({ default: '' })
   description: string;
 
   @Column({ default: false })

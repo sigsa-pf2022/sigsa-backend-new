@@ -18,7 +18,7 @@ export class GeographyController {
   async getCountries() {
     return this.geographyService.getCountries();
   }
-  @UseGuards(JwtAuthGuard)
+
   @Get('/states/:countryId')
   async getStatesByCountry(@Request() req) {
     const country = await this.geographyService.getCountryById(
@@ -27,7 +27,7 @@ export class GeographyController {
     if (!country) {
       throw new HttpException(
         {
-          message: 'No se encontro el pais seleccionado',
+          message: 'No se encontraron provincias para el pais seleccionado',
           status: 'error',
         },
         HttpStatus.BAD_REQUEST,
