@@ -1,3 +1,4 @@
+import { User } from '../../users/entities/user.entity';
 import {
   Column,
   Entity,
@@ -8,7 +9,6 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from '../../users/user.entity';
 import { Dependent } from './dependent.entity';
 
 @Entity({ name: 'family_group' })
@@ -27,7 +27,7 @@ export class FamilyGroup {
   @JoinColumn()
   createdBy: User;
 
-  @ManyToMany(() => User, (user) => user.memberFamilyGroups, { nullable: true })
+  @ManyToMany(() => User, { nullable: true })
   @JoinTable()
   members: User[];
 

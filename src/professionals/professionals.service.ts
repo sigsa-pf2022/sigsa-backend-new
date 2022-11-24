@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hashSync } from 'bcrypt';
-import { Role } from 'src/roles/enums/role.enum';
-import { User } from 'src/users/user.entity';
+import { User } from '../users/entities/user.entity';
 import { random } from 'src/users/utils/random-number';
 import { Repository } from 'typeorm';
 import { CreateMyProfessionalDto } from './dto/create-my-professional.dto';
@@ -11,6 +10,7 @@ import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { Professionals } from './entities/my-professional.entity';
 import { ProfessionalSpecialization } from './entities/professional-specialization.entity';
 import { ProfessionalUser } from './entities/professional-user.entity';
+import { Role } from 'src/roles/enums/role.enum';
 
 @Injectable()
 export class ProfessionalsService {
@@ -50,7 +50,9 @@ export class ProfessionalsService {
     return this.myProfessionalsRepository.find();
   }
   async getProfessionals() {
-    return this.professionalUserRepository.find();
+    return this.professionalUserRepository.find({
+      relations: { specialization: true },
+    });
   }
   async getAllProfessionalsSpecializations() {
     return this.professionalSpecializationsRepository.find();
@@ -77,6 +79,7 @@ export class ProfessionalsService {
       password,
     });
     newProfessional.verificationCode = random();
+    newProfessional.role = Role.Professional;
     return this.professionalUserRepository.save(newProfessional);
   }
 

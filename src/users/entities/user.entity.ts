@@ -1,6 +1,9 @@
-import { Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Role } from '../../roles/enums/role.enum';
+import { Column, Entity, PrimaryGeneratedColumn, TableInheritance } from 'typeorm';
 
-export abstract class IUser {
+@Entity()
+@TableInheritance({ column: { type: "varchar", name: "type" } })
+export class User {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -44,4 +47,13 @@ export abstract class IUser {
 
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;
+
+  @Column({
+    type: 'enum',
+    enum: Role,
+  })
+  role: Role;
+  
+  @Column()
+  type: string;
 }

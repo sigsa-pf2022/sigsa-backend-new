@@ -12,6 +12,7 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { MailService } from 'src/mail/mail.service';
 import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
@@ -26,6 +27,7 @@ export class ProfessionalsController {
   constructor(
     private readonly professionalsService: ProfessionalsService,
     private readonly userService: UsersService,
+    private readonly mailService: MailService,
   ) {}
 
   @UseGuards(RoleGuard(Role.User))
@@ -33,22 +35,22 @@ export class ProfessionalsController {
   async createMyProfessional(
     @Body() createProfessionalDto: CreateProfessionalDto,
     @Req() request,
-    ) {
-      try {
-        const user = await this.userService.getUserById(request.user.id);
-        const newMyProfessional: Professionals =
+  ) {
+    try {
+      const user = await this.userService.getUserById(request.user.id);
+      const newMyProfessional: Professionals =
         await this.professionalsService.createMyProfessional(
           createProfessionalDto,
           user,
-          );
-          return { status: HttpStatus.CREATED, id: newMyProfessional.id };
-        } catch (error) {
-          throw new HttpException(
-            {
-              message: 'No se pudo crear el profesional',
-              status: 'error',
-            },
-            HttpStatus.INTERNAL_SERVER_ERROR,
+        );
+      return { status: HttpStatus.CREATED, id: newMyProfessional.id };
+    } catch (error) {
+      throw new HttpException(
+        {
+          message: 'No se pudo crear el profesional',
+          status: 'error',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
       );
     }
   }
@@ -62,6 +64,7 @@ export class ProfessionalsController {
         await this.professionalsService.createProfessional(
           createProfessionalDto,
         );
+      this.mailService.sendUserConfirmation(newProfessional);
       return { status: HttpStatus.CREATED, id: newProfessional.id };
     } catch (error) {
       throw new HttpException(
@@ -99,7 +102,7 @@ export class ProfessionalsController {
   }
   @Get('/specializations/all')
   async getAllProfessionalsSpecializations() {
-    return await this.professionalsService.getAllProfessionalsSpecializations()
+    return await this.professionalsService.getAllProfessionalsSpecializations();
   }
   @Get('/specializations/:id')
   async getProfessionalsSpecializationById(@Req() request) {

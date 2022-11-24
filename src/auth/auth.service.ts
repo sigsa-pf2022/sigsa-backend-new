@@ -1,8 +1,8 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { UsersService } from 'src/users/users.service';
+import { UsersService } from '../users/users.service';
 import { compareSync } from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { User } from 'src/users/user.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AuthService {
@@ -48,7 +48,7 @@ export class AuthService {
   }
 
   async login(user: User) {
-    const payload = {role: user.role, email: user.email, id: user.id };
+    const payload = {email: user.email, id: user.id, role: user['role'] };
     return {
       access_token: this.jwtService.sign(payload),
       user,

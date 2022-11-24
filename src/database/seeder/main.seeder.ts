@@ -9,8 +9,8 @@ export class MainSeeder implements Seeder{
     async run(dataSource: DataSource): Promise<void> {
         await runSeeder(dataSource, CountrySeeder)
         await runSeeder(dataSource, StatesSeeder)
-        await runSeeder(dataSource, CitiesSeeder)
         await runSeeder(dataSource, SpecializationsSeeder)
+        // await runSeeder(dataSource, CitiesSeeder)
     }
 
 }

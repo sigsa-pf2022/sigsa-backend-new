@@ -117,9 +117,9 @@ export class UsersController {
     return this.userService.getUserStatus(req.params.email);
   }
 
-  // @UseGuards(JwtAuthGuard)
-  // @Get('/:username')
-  // getUserByUsername(@Request() req) {
-  //   return this.userService.getUserByUsername(Number(req.params.username));
-  // }
+  @UseGuards(JwtAuthGuard)
+  @Get('/:dni')
+  getUserByDni(@Request() req) {
+    return this.userService.getUserByDni(req.params.dni);
+  }
 }

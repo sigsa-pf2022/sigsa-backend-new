@@ -7,6 +7,7 @@ const RoleGuard = (role: Role): Type<CanActivate> => {
     async canActivate(context: ExecutionContext) {
       await super.canActivate(context);
       const request = context.switchToHttp().getRequest();
+      console.log(request.user);
       const roles = [request.user.role];
 
       return roles.includes(role);

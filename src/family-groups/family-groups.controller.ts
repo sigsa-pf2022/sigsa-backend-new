@@ -29,7 +29,7 @@ export class FamilyGroupsController {
       const userMembers = [];
       for (const member of members) {
         userMembers.push(
-          await this.userService.getFullUserByUsername(member.username),
+          await this.userService.getFullUserByDni(member.dni),
         );
       }
       const newFamilyGroup: FamilyGroup =

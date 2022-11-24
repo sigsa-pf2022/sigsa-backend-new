@@ -1,11 +1,10 @@
-import { Column, Entity, JoinTable, ManyToMany } from 'typeorm';
+import { ChildEntity, Column, JoinTable, ManyToMany } from 'typeorm';
 import { ProfessionalSpecialization } from './professional-specialization.entity';
 import { State } from '../../geography/entities/state.entity';
-import { IUser } from '../../users/abstract/IUser.abstract.entity';
-import { Role } from '../../roles/enums/role.enum';
+import { User } from '../../users/entities/user.entity';
 
-@Entity({ name: 'professionals_user' })
-export class ProfessionalUser extends IUser {
+@ChildEntity()
+export class ProfessionalUser extends User {
   @ManyToMany(() => ProfessionalSpecialization)
   @JoinTable()
   specialization: ProfessionalSpecialization[];
@@ -16,11 +15,4 @@ export class ProfessionalUser extends IUser {
   @ManyToMany(() => State)
   @JoinTable()  
   jurisdiction: State[];
-
-  @Column({
-    type: 'enum',
-    enum: Role,
-    default: Role.Professional,
-  })
-  role: Role;
 }

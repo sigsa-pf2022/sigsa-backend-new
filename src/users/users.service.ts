@@ -2,16 +2,18 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
-import { User } from './user.entity';
 import { hashSync } from 'bcrypt';
 import { ValidateUserDto } from './dto/validate-user.dto';
 import { random } from './utils/random-number';
+import { User } from './entities/user.entity';
+import { NormalUser } from './entities/normal-user.entity';
 import { Role } from 'src/roles/enums/role.enum';
-import { IUser } from './abstract/IUser.abstract.entity';
 
 @Injectable()
 export class UsersService {
   constructor(
+    @InjectRepository(NormalUser)
+    private normalUserRepository: Repository<NormalUser>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
   ) {}
@@ -23,13 +25,16 @@ export class UsersService {
   // async getFullUserByUsername(username: number) {
   //   return await this.userRepository.findOne({ where: { username } });
   // }
+  async getFullUserByDni(dni: string) {
+    return await this.userRepository.findOne({ where: { dni } });
+  }
 
-  // async getUserByUsername(username: number) {
-  //   return await this.userRepository.findOne({
-  //     select: { firstName: true, lastName: true, username: true },
-  //     where: { username },
-  //   });
-  // }
+  async getUserByDni(dni: string) {
+    return await this.userRepository.findOne({
+      select: { firstName: true, lastName: true, dni: true },
+      where: { dni },
+    });
+  }
 
   async getUserById(id: number) {
     const user = await this.userRepository.findOne({
@@ -45,13 +50,14 @@ export class UsersService {
 
   async createUser(createUserDto: CreateUserDto) {
     const password = hashSync(createUserDto.password, 10);
-    const newUser = this.userRepository.create({
+    const newUser = this.normalUserRepository.create({
       ...createUserDto,
       password,
     });
     newUser.verificationCode = random();
-    const user = await this.userRepository.save(newUser);
-    return this.userRepository.save(user);
+    newUser.role = Role.User;
+    const user = await this.normalUserRepository.save(newUser);
+    return this.normalUserRepository.save(user);
   }
 
   async validateUser(validateUserDto: ValidateUserDto) {
@@ -63,7 +69,7 @@ export class UsersService {
     };
   }
 
-  async resetPassword(data, user: IUser) {
+  async resetPassword(data, user: User) {
     const password = hashSync(data.password, 10);
     const updatedUser = await this.userRepository.update(
       { id: user.id },

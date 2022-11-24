@@ -12,13 +12,13 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
-import { Professionals } from 'src/professionals/entities/my-professional.entity';
-import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
+import { ProfessionalUser } from '../professionals/entities/professional-user.entity';
 import { ProfessionalsService } from 'src/professionals/professionals.service';
 import { UsersService } from 'src/users/users.service';
 import { Appointment } from './appointment.entity';
 import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
+import { Professionals } from '../professionals/entities/my-professional.entity';
 
 @UseGuards(JwtAuthGuard)
 @Controller('appointments')
@@ -55,6 +55,7 @@ export class AppointmentsController {
     try {
       const user = await this.userService.getUserById(req.user.id);
       let appointment: Appointment;
+      console.log(createAppointmentDto);
       if (createAppointmentDto.myProfessional) {
         const myProfessional: Professionals =
           await this.professionalsService.getMyProfessionalById(
