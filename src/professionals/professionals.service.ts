@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { hashSync } from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { random } from 'src/users/utils/random-number';
-import { Repository } from 'typeorm';
+import { Like, Repository } from 'typeorm';
 import { CreateMyProfessionalDto } from './dto/create-my-professional.dto';
 import { CreateProfessionalSpecializationDto } from './dto/create-professional-specialization.dto';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
@@ -57,8 +57,19 @@ export class ProfessionalsService {
   async getAllProfessionalsSpecializations() {
     return this.professionalSpecializationsRepository.find();
   }
-  async getProfessionalsSpecializations(page, quantity) {
+  async getProfessionalsSpecializations(
+    page: number,
+    quantity: number,
+    deleted: boolean,
+    name: string,
+    description: string,
+  ) {
     return this.professionalSpecializationsRepository.findAndCount({
+      where: {
+        deleted: deleted,
+        name: Like(`%${name}%`),
+        description: Like(`%${description}%`),
+      },
       take: quantity,
       skip: page * quantity,
       order: { name: 'ASC' },
@@ -106,11 +117,11 @@ export class ProfessionalsService {
       },
     );
   }
-  async deleteSpecialization(id: number) {
+  async toggleStatusSpecialization(id: number, deleted: boolean) {
     return this.professionalSpecializationsRepository.update(
       { id },
       {
-        deleted: true,
+        deleted,
       },
     );
   }

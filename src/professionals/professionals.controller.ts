@@ -97,8 +97,11 @@ export class ProfessionalsController {
     const res = await this.professionalsService.getProfessionalsSpecializations(
       request.query.page,
       request.query.take,
+      request.query.deleted,
+      request.query.name,
+      request.query.description,
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], total: res[1], count: res[0].length };
   }
   @Get('/specializations/all')
   async getAllProfessionalsSpecializations() {
@@ -146,8 +149,13 @@ export class ProfessionalsController {
     );
   }
 
+  @Put('/specializations/recover/:id')
+  async recoverSpecialization(@Req() request) {
+    return this.professionalsService.toggleStatusSpecialization(request.params.id, false);
+  }
+
   @Delete('/specializations/:id')
   async deleteSpecialization(@Req() request) {
-    return this.professionalsService.deleteSpecialization(request.params.id);
+    return this.professionalsService.toggleStatusSpecialization(request.params.id, true);
   }
 }

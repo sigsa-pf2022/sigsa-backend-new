@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { MedsMeasurementUnit } from './meds-measurement-unit.entity';
+import { MedsMeasurementUnitController } from './meds-measurement-unit.controller';
 import { MedsMeasurementUnitService } from './meds-measurement-unit.service';
+import { MedsMeasurementUnit } from './meds-measurement-unit.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([MedsMeasurementUnit])],
   providers: [MedsMeasurementUnitService],
   exports: [MedsMeasurementUnitService],
-  controllers: [MedsMeasurementUnitModule],
+  controllers: [MedsMeasurementUnitController],
 })
 export class MedsMeasurementUnitModule {}
