@@ -13,6 +13,9 @@ import { GeographyModule } from './geography/geography.module';
 import { HttpModule } from '@nestjs/axios';
 import { EventsModule } from './events/events.module';
 import { MedsShapeModule } from './meds/meds-shape/meds-shape.module';
+import { MedsTypeModule } from './meds/meds-type/meds-type.module';
+import { MedsDrugModule } from './meds/meds-drug/meds-drug.module';
+import { MedsMeasurementUnitModule } from './meds/meds-measurement-unit/meds-measurement-unit.module';
 
 @Module({
   imports: [
@@ -27,6 +30,9 @@ import { MedsShapeModule } from './meds/meds-shape/meds-shape.module';
     HttpModule,
     EventsModule,
     MedsShapeModule,
+    MedsTypeModule,
+    MedsDrugModule,
+    MedsMeasurementUnitModule
   ],
 })
 export class AppModule {}
