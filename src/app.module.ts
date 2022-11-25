@@ -12,6 +12,7 @@ import { ClinicsModule } from './clinics/clinics.module';
 import { GeographyModule } from './geography/geography.module';
 import { HttpModule } from '@nestjs/axios';
 import { EventsModule } from './events/events.module';
+import { MedsShapeModule } from './meds/meds-shape/meds-shape.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { EventsModule } from './events/events.module';
     GeographyModule,
     HttpModule,
     EventsModule,
+    MedsShapeModule,
   ],
 })
 export class AppModule {}
