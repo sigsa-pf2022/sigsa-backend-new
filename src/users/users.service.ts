@@ -78,7 +78,7 @@ export class UsersService {
         password: password,
       },
     );
-    console.log(updatedUser)
+    console.log(updatedUser);
     return updatedUser;
   }
 
@@ -97,5 +97,9 @@ export class UsersService {
       emailVerified: true,
       verificationCode: null,
     });
+  }
+
+  getMonthlyUserQuantity() {
+    return this.userRepository.find({ select: { createdAt: true } });
   }
 }

@@ -51,6 +51,12 @@ export class ProfessionalsService {
   }
   async getProfessionals() {
     return this.professionalUserRepository.find({
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        licenseNumber: true,
+      },
       relations: { specialization: true },
     });
   }
@@ -124,5 +130,10 @@ export class ProfessionalsService {
         deleted,
       },
     );
+  }
+  getMonthlyProfessionalsQuantity() {
+    return this.professionalUserRepository.find({
+      select: { createdAt: true },
+    });
   }
 }

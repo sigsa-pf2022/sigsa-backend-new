@@ -6,6 +6,7 @@ export enum EventStatus {
   SENDED = 'sended',
   CONFIRMED = 'confirmed',
   DISCARDED = 'discarded',
+  CANCELED = 'canceled',
 }
 
 export abstract class NotificationEvent {

@@ -12,6 +12,12 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import {
+  eachMonthOfInterval,
+  getMonth,
+  isSameMonth,
+  subMonths,
+} from 'date-fns';
 import { MailService } from 'src/mail/mail.service';
 import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
@@ -76,7 +82,6 @@ export class ProfessionalsController {
       );
     }
   }
-
   @UseGuards(RoleGuard(Role.User))
   @Get('/my-professionals')
   async getFamilyGroupsByUserId(@Req() request) {
@@ -151,11 +156,35 @@ export class ProfessionalsController {
 
   @Put('/specializations/recover/:id')
   async recoverSpecialization(@Req() request) {
-    return this.professionalsService.toggleStatusSpecialization(request.params.id, false);
+    return this.professionalsService.toggleStatusSpecialization(
+      request.params.id,
+      false,
+    );
   }
 
   @Delete('/specializations/:id')
   async deleteSpecialization(@Req() request) {
-    return this.professionalsService.toggleStatusSpecialization(request.params.id, true);
+    return this.professionalsService.toggleStatusSpecialization(
+      request.params.id,
+      true,
+    );
+  }
+
+  @Get('/monthly-quantity')
+  async getMonthlyUserQuantity() {
+    const today = new Date();
+    const professionals =
+      await this.professionalsService.getMonthlyProfessionalsQuantity();
+    const months = eachMonthOfInterval({
+      start: subMonths(today, 5),
+      end: today,
+    });
+    const professionalsPerMonth = [];
+    for (const month of months) {
+      professionalsPerMonth.push(
+        professionals.filter((p) => isSameMonth(month, p.createdAt)).length,
+      );
+    }
+    return professionalsPerMonth;
   }
 }

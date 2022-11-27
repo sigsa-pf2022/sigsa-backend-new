@@ -9,8 +9,13 @@ import {
   Request,
   HttpException,
   HttpStatus,
-  Req,
 } from '@nestjs/common';
+import {
+  eachMonthOfInterval,
+  getMonth,
+  isSameMonth,
+  subMonths,
+} from 'date-fns';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { MailService } from 'src/mail/mail.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -85,7 +90,7 @@ export class UsersController {
   @UsePipes(ValidationPipe)
   async validateUser(@Body() validateUserDto: ValidateUserDto) {
     const { user, isCodeCorrect } = await this.userService.validateUser(
-      validateUserDto
+      validateUserDto,
     );
     if (!isCodeCorrect) {
       throw new HttpException(
@@ -115,6 +120,23 @@ export class UsersController {
   @Get('/status')
   getUserStatus(@Request() req) {
     return this.userService.getUserStatus(req.params.email);
+  }
+
+  @Get('/monthly-quantity')
+  async getMonthlyUserQuantity() {
+    const today = new Date();
+    const users = await this.userService.getMonthlyUserQuantity();
+    const months = eachMonthOfInterval({
+      start: subMonths(today, 5),
+      end: today,
+    });
+    const userPerMonth = [];
+    for (const month of months) {
+      userPerMonth.push(
+        users.filter((u) => isSameMonth(month, u.createdAt)).length,
+      );
+    }
+    return userPerMonth;
   }
 
   @UseGuards(JwtAuthGuard)

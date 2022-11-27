@@ -4,6 +4,6 @@ import { ProfessionalUser } from 'src/professionals/entities/professional-user.e
 export class CreateAppointmentDTO {
   professional?: ProfessionalUser;
   myProfessional?: Professionals;
-  comments: string;
+  description: string;
   date: string;
 }
