@@ -12,7 +12,6 @@ import {
 } from '@nestjs/common';
 import {
   eachMonthOfInterval,
-  getMonth,
   isSameMonth,
   subMonths,
 } from 'date-fns';

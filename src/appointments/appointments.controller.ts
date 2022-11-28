@@ -8,6 +8,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Req,
   Request,
   UseGuards,
@@ -21,6 +22,7 @@ import { AppointmentsService } from './appointments.service';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 import { Professionals } from '../professionals/entities/my-professional.entity';
 import { formatISO } from 'date-fns';
+import { EditAppointmentDto } from './dto/edit-appointment.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('appointments')
@@ -115,53 +117,45 @@ export class AppointmentsController {
     }
   }
 
-  // @Put('/update')
-  // async editAppointment(
-  //   @Request() req,
-  //   @Body() createAppointmentDto: CreateAppointmentDTO,
-  // ) {
-  //   try {
-  //     const user = await this.userService.getUserById(req.user.id);
-  //     let appointment: Appointment;
-  //     if (createAppointmentDto.myProfessional) {
-  //       const myProfessional: Professionals =
-  //         await this.professionalsService.getMyProfessionalById(
-  //           createAppointmentDto.myProfessional.id,
-  //         );
-  //       appointment =
-  //         await this.appoinmentsService.editAppointmentWithMyProfessional(
-  //           createAppointmentDto,
-  //           user,
-  //           myProfessional,
-  //         );
-  //     } else {
-  //       const professional: ProfessionalUser =
-  //         await this.professionalsService.getProfessionalById(
-  //           createAppointmentDto.professional.id,
-  //         );
-  //       appointment =
-  //         await this.appoinmentsService.createAppointmentWithProfessionalUser(
-  //           createAppointmentDto,
-  //           user,
-  //           professional,
-  //         );
-  //     }
-  //     const appt = {
-  //       professional: appointment.myProfessional
-  //         ? appointment.myProfessional
-  //         : appointment.professional,
-  //       date: appointment.date,
-  //       description: appointment.description,
-  //     };
-  //     return { status: HttpStatus.CREATED, appointment: appt };
-  //   } catch (error) {
-  //     throw new HttpException(
-  //       {
-  //         message: 'No se pudo crear el turno',
-  //         status: 'error',
-  //       },
-  //       HttpStatus.BAD_REQUEST,
-  //     );
-  //   }
-  // }
+  @Put('/:id')
+  async editAppointment(
+    @Request() req,
+    @Body() editAppointmentDto: EditAppointmentDto,
+  ) {
+    try {
+      if (editAppointmentDto.myProfessional) {
+        console.log('es myp');
+        const myProfessional: Professionals =
+          await this.professionalsService.getMyProfessionalById(
+            editAppointmentDto.myProfessional.id,
+          );
+        console.log(myProfessional);
+        editAppointmentDto.myProfessional = myProfessional;
+        console.log(editAppointmentDto);
+        await this.appoinmentsService.updateAppointmentWithMyProfessional(
+          req.params.id,
+          editAppointmentDto,
+        );
+      } else {
+        const professional: ProfessionalUser =
+          await this.professionalsService.getProfessionalById(
+            editAppointmentDto.professional.id,
+          );
+        editAppointmentDto.professional = professional;
+        await this.appoinmentsService.updateAppointmentWithProfessionalUser(
+          req.params.id,
+          editAppointmentDto,
+        );
+      }
+      return { status: HttpStatus.CREATED };
+    } catch (error) {
+      throw new HttpException(
+        {
+          message: 'No se pudo editar el turno',
+          status: 'error',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 }

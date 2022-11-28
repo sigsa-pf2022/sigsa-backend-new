@@ -59,6 +59,7 @@ export class AppointmentsService {
       },
       where: {
         createdBy: user,
+        status: Not(EventStatus.CANCELED),
       },
       relations: {
         myProfessional: true,
@@ -124,6 +125,29 @@ export class AppointmentsService {
       { id },
       {
         status: EventStatus.CANCELED,
+      },
+    );
+  }
+
+  async updateAppointmentWithProfessionalUser(id: number, body) {
+    return this.appointmentRepository.update(
+      { id },
+      {
+        date: body.date,
+        description: body.description,
+        professional: body.professional,
+        myProfessional: null,
+      },
+    );
+  }
+  async updateAppointmentWithMyProfessional(id: number, body) {
+    return this.appointmentRepository.update(
+      { id },
+      {
+        date: body.date,
+        description: body.description,
+        myProfessional: body.myProfessional,
+        professional: null,
       },
     );
   }
