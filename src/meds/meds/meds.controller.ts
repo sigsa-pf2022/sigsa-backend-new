@@ -19,6 +19,10 @@ import { MedsService } from './meds.service';
 export class MedsController {
   constructor(private readonly medsService: MedsService) {}
 
+  @Get('/all')
+  async getAllMeds() {
+    return await this.medsService.getAllMeds();
+  }
   @Get()
   async getMeds(@Req() request) {
     const res = await this.medsService.getMeds(

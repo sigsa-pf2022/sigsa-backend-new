@@ -12,6 +12,12 @@ export class MedsService {
     private medsRepository: Repository<Meds>,
   ) {}
 
+  async getAllMeds() {
+    return this.medsRepository.find({
+      relations: { drug: true, shape: true, type: true, measurementUnit: true },
+    });
+  }
+  
   async getMeds(page, quantity) {
     return this.medsRepository.findAndCount({
       take: quantity,
@@ -48,7 +54,7 @@ export class MedsService {
     return this.medsRepository.update(
       { id },
       {
-        ...updateMedsDto
+        ...updateMedsDto,
       },
     );
   }
