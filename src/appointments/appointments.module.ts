@@ -8,11 +8,12 @@ import { ProfessionalsModule } from 'src/professionals/professionals.module';
 
 @Module({
   imports: [
-    ProfessionalsModule,
     TypeOrmModule.forFeature([Appointment]),
+    ProfessionalsModule,
     UsersModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],
+  exports: [AppointmentsService]
 })
 export class AppointmentsModule {}

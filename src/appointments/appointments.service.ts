@@ -4,7 +4,7 @@ import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { Professionals } from 'src/professionals/entities/my-professional.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { User } from 'src/users/entities/user.entity';
-import { Not, Repository } from 'typeorm';
+import { Not, Raw, Repository } from 'typeorm';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 
@@ -67,6 +67,36 @@ export class AppointmentsService {
       order: {
         date: 'DESC',
       },
+    });
+  }
+
+  getNextAppointmentsByUser(user: User) {
+    return this.appointmentRepository.find({
+      select: {
+        professional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+        myProfessional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      where: {
+        createdBy: user,
+        status: EventStatus.CREATED,
+        date: Raw((alias) => `${alias} > NOW()`),
+      },
+      relations: {
+        myProfessional: true,
+        professional: true,
+      },
+      order: {
+        date: 'ASC',
+      },
+      take: 3,
     });
   }
 

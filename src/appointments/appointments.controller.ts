@@ -8,7 +8,6 @@ import {
   Param,
   ParseIntPipe,
   Post,
-  Put,
   Req,
   Request,
   UseGuards,

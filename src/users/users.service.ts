@@ -78,7 +78,6 @@ export class UsersService {
         password: password,
       },
     );
-    console.log(updatedUser);
     return updatedUser;
   }
 

@@ -21,7 +21,7 @@ export default class TypeOrmConfig {
       entities: [dir + '/**/*.entity{.ts,.js}'],
       seeds: [CountrySeeder],
       synchronize: true,
-      logging: true,
+      // logging: true,
       // dropSchema: true,
     };
   }

@@ -32,22 +32,18 @@ export class UsersController {
   @Post('/create')
   @UsePipes(ValidationPipe)
   async createUser(@Body() createUserDto: CreateUserDto) {
-    try {
-      const existsUser = await this.userService.getUserByEmail(
-        createUserDto.email,
-      );
-      if (existsUser) {
-        throw new HttpException('Email invalido', HttpStatus.BAD_REQUEST);
-      }
-      const user = await this.userService.createUser(createUserDto);
-      this.mailService.sendUserConfirmation(user);
-      return {
-        status: HttpStatus.CREATED,
-        message: 'Usuario creado correctamente',
-      };
-    } catch (error) {
-      return error;
+    const existsUser = await this.userService.getUserByEmail(
+      createUserDto.email,
+    );
+    if (existsUser) {
+      throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
     }
+    const user = await this.userService.createUser(createUserDto);
+    this.mailService.sendUserConfirmation(user);
+    return {
+      status: HttpStatus.CREATED,
+      message: 'Usuario creado correctamente',
+    };
   }
 
   @Post('/recovery-password-email')
@@ -55,7 +51,7 @@ export class UsersController {
     try {
       const user = await this.userService.getUserByEmail(data.email);
       if (!user) {
-        throw new HttpException('Email invalido', HttpStatus.BAD_REQUEST);
+        throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
       }
       await this.userService
         .setRecoveryPasswordToken(user)
@@ -74,7 +70,7 @@ export class UsersController {
     try {
       const user = await this.userService.getUserByEmail(data.email);
       if (!user) {
-        throw new HttpException('Email invalido', HttpStatus.BAD_REQUEST);
+        throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
       }
       await this.userService.resetPassword(data, user);
       return {
