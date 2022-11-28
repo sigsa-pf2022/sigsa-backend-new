@@ -113,8 +113,19 @@ export class UsersController {
   }
 
   @Get('/status')
-  getUserStatus(@Request() req) {
-    return this.userService.getUserStatus(req.params.email);
+  async getUserStatus(@Request() req) {
+    console.log(req.query)
+    const user = await this.userService.getUserStatus(req.query.email);
+    if (!user) {
+      throw new HttpException(
+      {
+        message: 'Incorrecta combinación de email/contraseña',
+        status: 'invalid',
+      },
+      HttpStatus.BAD_REQUEST,
+      );
+    }
+    return user.emailVerified;
   }
 
   @Get('/monthly-quantity')

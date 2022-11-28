@@ -86,18 +86,7 @@ export class UsersService {
     return await this.userRepository.save(user);
   }
   async getUserStatus(email: string) {
-    const user = await this.getUserByEmail(email);
-    if (!user) {
-      throw new HttpException(
-        {
-          message: 'Incorrecta combinación de email/contraseña',
-          status: 'invalid',
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    } else {
-      return user.emailVerified;
-    }
+    return await this.getUserByEmail(email);
   }
 
   updateValidateStatus(user_id: number) {
