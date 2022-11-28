@@ -5,13 +5,20 @@ import { MedsTypeService } from './meds-type.service';
 @Controller('meds-type')
 export class MedsTypeController {
   constructor(private readonly medsTypeService: MedsTypeService) {}
+  @Get('all')
+  async getAllTypes() {
+    return await this.medsTypeService.getAllTypes();
+  }
   @Get()
   async getTypes(@Req() request) {
     const res = await this.medsTypeService.getTypes(
       request.query.page,
       request.query.take,
+      request.query.deleted,
+      request.query.name,
+      request.query.description,
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], total: res[1], count: res[0].length };
   }
 
     // @UseGuards(RoleGuard(Role.Admin))

@@ -11,6 +11,11 @@ export class MedsMeasurementUnitService {
     private medsMeasurementUnitRepository: Repository<MedsMeasurementUnit>,
   ) {}
 
+  async getAllMeasurementUnits() {
+    return this.medsMeasurementUnitRepository.find({
+      order: { name: 'ASC' },
+    });
+  }
   async getMeasurementUnits(page, quantity) {
     return this.medsMeasurementUnitRepository.findAndCount({
       take: quantity,
@@ -25,8 +30,12 @@ export class MedsMeasurementUnitService {
   async getMeasurementUnitByName(name: string) {
     return this.medsMeasurementUnitRepository.findOneBy({ name });
   }
-  async createMeasurementUnit(createMedsMeasurementUnitDto: CreateMedsMeasurementUnitDto) {
-    const newMedsMeasurementUnit = this.medsMeasurementUnitRepository.create(createMedsMeasurementUnitDto);
+  async createMeasurementUnit(
+    createMedsMeasurementUnitDto: CreateMedsMeasurementUnitDto,
+  ) {
+    const newMedsMeasurementUnit = this.medsMeasurementUnitRepository.create(
+      createMedsMeasurementUnitDto,
+    );
     return this.medsMeasurementUnitRepository.save(newMedsMeasurementUnit);
   }
   async updateMeasurementUnit(id: number, body) {

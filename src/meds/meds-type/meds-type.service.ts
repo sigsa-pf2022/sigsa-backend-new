@@ -1,6 +1,6 @@
 import { Get, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Like, Repository } from 'typeorm';
 import { CreateMedsTypeDto } from './dto/create-meds-type.dto';
 import { MedsType } from './meds-type.entity';
 
@@ -11,8 +11,24 @@ export class MedsTypeService {
     private medsTypeRepository: Repository<MedsType>,
   ) {}
 
-  async getTypes(page, quantity) {
+  async getAllTypes() {
+    return this.medsTypeRepository.find({
+      order: { name: 'ASC' },
+    });
+  }
+  async getTypes(
+    page: number,
+    quantity: number,
+    deleted: boolean,
+    name: string,
+    description: string,
+  ) {
     return this.medsTypeRepository.findAndCount({
+      where: {
+        deleted: deleted,
+        name: Like(`%${name}%`),
+        description: Like(`%${description}%`),
+      },
       take: quantity,
       skip: page * quantity,
       order: { name: 'ASC' },

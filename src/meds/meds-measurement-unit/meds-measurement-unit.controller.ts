@@ -19,6 +19,10 @@ export class MedsMeasurementUnitController {
   constructor(
     private readonly medsMeasurementUnitService: MedsMeasurementUnitService,
   ) {}
+  @Get('all')
+  async getAllMeasurementUnits() {
+    return await this.medsMeasurementUnitService.getAllMeasurementUnits();
+  }
   @Get()
   async getMeasurementUnits(@Req() request) {
     const res = await this.medsMeasurementUnitService.getMeasurementUnits(

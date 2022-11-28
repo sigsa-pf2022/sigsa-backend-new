@@ -11,6 +11,10 @@ export class MedsDrugService {
     private medsDrugRepository: Repository<MedsDrug>,
   ) {}
 
+  async getAllDrugs() {
+    return this.medsDrugRepository.find({ order: { name: 'ASC' } });
+  }
+
   async getDrugs(page, quantity) {
     return this.medsDrugRepository.findAndCount({
       take: quantity,

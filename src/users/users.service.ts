@@ -44,8 +44,19 @@ export class UsersService {
     return user;
   }
 
-  async getUsers() {
-    return await this.userRepository.find();
+  async getUsers(page, quantity) {
+    return this.normalUserRepository.findAndCount({
+      select:{
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        createdAt: true,
+      },
+      take: quantity,
+      skip: page * quantity,
+      order: { firstName: 'ASC' },
+    });
   }
 
   async createUser(createUserDto: CreateUserDto) {
@@ -98,6 +109,6 @@ export class UsersService {
   }
 
   getMonthlyUserQuantity() {
-    return this.userRepository.find({ select: { createdAt: true } });
+    return this.normalUserRepository.find({ select: { createdAt: true } });
   }
 }

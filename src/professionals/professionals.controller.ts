@@ -97,6 +97,17 @@ export class ProfessionalsController {
   async getProfessionals() {
     return await this.professionalsService.getProfessionals();
   }
+  @Get('dashboard')
+  async getProfessionalsDashboard(@Req() request) {
+    console.log('profesionales');
+    const res = await this.professionalsService.getProfessionalsDashboard(
+      request.query.page,
+      request.query.take,
+      request.query.firstName,
+      request.query.lastName,
+    );
+    return { data: res[0], total: res[1], count: res[0].length };
+  }
   @Get('specializations')
   async getProfessionalsSpecializations(@Req() request) {
     const res = await this.professionalsService.getProfessionalsSpecializations(

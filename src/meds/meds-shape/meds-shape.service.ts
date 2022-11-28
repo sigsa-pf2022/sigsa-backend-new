@@ -11,6 +11,11 @@ export class MedsShapeService {
     private medsShapeRepository: Repository<MedsShape>,
   ) {}
 
+  async getAllShapes() {
+    return this.medsShapeRepository.find({
+      order: { name: 'ASC' },
+    });
+  }
   async getShapes(page, quantity) {
     return this.medsShapeRepository.findAndCount({
       take: quantity,

@@ -63,6 +63,24 @@ export class ProfessionalsService {
   async getAllProfessionalsSpecializations() {
     return this.professionalSpecializationsRepository.find();
   }
+
+  async getProfessionalsDashboard(
+    page: number,
+    quantity: number,
+    firstName: string,
+    lastName: string,
+  ) {
+    return this.professionalUserRepository.findAndCount({
+      where: {
+        firstName: Like(`%${firstName}%`),
+        lastName: Like(`%${lastName}%`),
+      },
+      take: quantity,
+      skip: page * quantity,
+      order: { firstName: 'ASC' },
+    });
+  }
+
   async getProfessionalsSpecializations(
     page: number,
     quantity: number,

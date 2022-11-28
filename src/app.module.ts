@@ -16,6 +16,7 @@ import { MedsShapeModule } from './meds/meds-shape/meds-shape.module';
 import { MedsTypeModule } from './meds/meds-type/meds-type.module';
 import { MedsDrugModule } from './meds/meds-drug/meds-drug.module';
 import { MedsMeasurementUnitModule } from './meds/meds-measurement-unit/meds-measurement-unit.module';
+import { MedsModule } from './meds/meds/meds.module';
 
 @Module({
   imports: [
@@ -32,7 +33,8 @@ import { MedsMeasurementUnitModule } from './meds/meds-measurement-unit/meds-mea
     MedsShapeModule,
     MedsTypeModule,
     MedsDrugModule,
-    MedsMeasurementUnitModule
+    MedsMeasurementUnitModule,
+    MedsModule
   ],
 })
 export class AppModule {}

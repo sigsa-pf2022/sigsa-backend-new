@@ -5,6 +5,10 @@ import { MedsShapeService } from './meds-shape.service';
 @Controller('meds-shape')
 export class MedsShapeController {
   constructor(private readonly medsShapeService: MedsShapeService) {}
+  @Get('all')
+  async getAllShapes() {
+    return await this.medsShapeService.getAllShapes();
+  }
   @Get()
   async getShapes(@Req() request) {
     const res = await this.medsShapeService.getShapes(

@@ -108,8 +108,12 @@ export class UsersController {
   }
 
   @Get('all')
-  async getUsers() {
-    return await this.userService.getUsers();
+  async getUsers(@Request() request) {
+    const res = await this.userService.getUsers(
+      request.query.page,
+      request.query.take,
+    );
+    return { data: res[0], count: res[1] };
   }
 
   @Get('/status')

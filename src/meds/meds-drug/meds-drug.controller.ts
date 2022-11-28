@@ -1,10 +1,26 @@
-import { Body, Controller, Delete, Get, HttpException, HttpStatus, Post, Put, Req, UsePipes, ValidationPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpException,
+  HttpStatus,
+  Post,
+  Put,
+  Req,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import { CreateMedsDrugDto } from './dto/create-meds-drug.dto';
 import { MedsDrugService } from './meds-drug.service';
 
 @Controller('meds-drug')
 export class MedsDrugController {
   constructor(private readonly medsDrugService: MedsDrugService) {}
+  @Get('all')
+  async getAllDrugs() {
+    return await this.medsDrugService.getAllDrugs();
+  }
   @Get()
   async getDrugs(@Req() request) {
     const res = await this.medsDrugService.getDrugs(
@@ -14,45 +30,37 @@ export class MedsDrugController {
     return { data: res[0], count: res[1] };
   }
 
-    // @UseGuards(RoleGuard(Role.Admin))
-    @UsePipes(ValidationPipe)
-    @Post('')
-    async createDrug(
-      @Req() request,
-      @Body()
-      createMedsDrugDto: CreateMedsDrugDto,
-    ) {
-      const isExist =
-        await this.medsDrugService.getDrugByName(
-          createMedsDrugDto.name,
-        );
-      if (Boolean(isExist)) {
-        throw new HttpException(
-          {
-            message: 'Ya existe una forma de medicamento con ese nombre',
-            status: 'error',
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      return this.medsDrugService.createDrug(
-        createMedsDrugDto,
+  // @UseGuards(RoleGuard(Role.Admin))
+  @UsePipes(ValidationPipe)
+  @Post('')
+  async createDrug(
+    @Req() request,
+    @Body()
+    createMedsDrugDto: CreateMedsDrugDto,
+  ) {
+    const isExist = await this.medsDrugService.getDrugByName(
+      createMedsDrugDto.name,
+    );
+    if (Boolean(isExist)) {
+      throw new HttpException(
+        {
+          message: 'Ya existe una forma de medicamento con ese nombre',
+          status: 'error',
+        },
+        HttpStatus.BAD_REQUEST,
       );
     }
+    return this.medsDrugService.createDrug(createMedsDrugDto);
+  }
 
   @Get('/:id')
   async getDrugById(@Req() request) {
-    return await this.medsDrugService.getDrugById(
-      request.params.id,
-    );
+    return await this.medsDrugService.getDrugById(request.params.id);
   }
 
   @Put('/:id')
   async updateDrug(@Req() request, @Body() body) {
-    return this.medsDrugService.updateDrug(
-      request.params.id,
-      body,
-    );
+    return this.medsDrugService.updateDrug(request.params.id, body);
   }
 
   @Delete('/:id')
