@@ -125,6 +125,17 @@ export class AppointmentsService {
       { id },
       {
         status: EventStatus.CANCELED,
+        updatedAt: new Date(),
+      },
+    );
+  }
+
+  confirmAppointment(id: number) {
+    return this.appointmentRepository.update(
+      { id },
+      {
+        status: EventStatus.CONFIRMED,
+        updatedAt: new Date(),
       },
     );
   }
@@ -137,6 +148,7 @@ export class AppointmentsService {
         description: body.description,
         professional: body.professional,
         myProfessional: null,
+        updatedAt: new Date(),
       },
     );
   }
@@ -148,6 +160,7 @@ export class AppointmentsService {
         description: body.description,
         myProfessional: body.myProfessional,
         professional: null,
+        updatedAt: new Date(),
       },
     );
   }

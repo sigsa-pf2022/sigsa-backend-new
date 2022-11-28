@@ -67,6 +67,11 @@ export class AppointmentsController {
     return this.appoinmentsService.cancelAppointment(req.params.id);
   }
 
+  @Put('/confirm/:id')
+  confirmAppointment(@Request() req) {
+    return this.appoinmentsService.confirmAppointment(req.params.id);
+  }
+
   @Post('/create')
   async createAppointment(
     @Request() req,
@@ -99,6 +104,7 @@ export class AppointmentsController {
           );
       }
       const appt = {
+        id: appointment.id,
         professional: appointment.myProfessional
           ? appointment.myProfessional
           : appointment.professional,
@@ -124,14 +130,11 @@ export class AppointmentsController {
   ) {
     try {
       if (editAppointmentDto.myProfessional) {
-        console.log('es myp');
         const myProfessional: Professionals =
           await this.professionalsService.getMyProfessionalById(
             editAppointmentDto.myProfessional.id,
           );
-        console.log(myProfessional);
         editAppointmentDto.myProfessional = myProfessional;
-        console.log(editAppointmentDto);
         await this.appoinmentsService.updateAppointmentWithMyProfessional(
           req.params.id,
           editAppointmentDto,
