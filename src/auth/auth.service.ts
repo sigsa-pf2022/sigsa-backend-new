@@ -20,21 +20,21 @@ export class AuthService {
           status: 'invalid',
         },
         HttpStatus.BAD_REQUEST,
-        );
-      } else {
-        if (compareSync(pass, user.password)) {
-          delete user.password;
-          if (!user.emailVerified) {
-            throw new HttpException(
-              {
-                message: 'El correo ingresado no ha sido validado',
-                status: 'email-not-verified',
-              },
-              HttpStatus.BAD_REQUEST,
-              );
-            } else {
-              return user;
-            }
+      );
+    } else {
+      if (compareSync(pass, user.password)) {
+        delete user.password;
+        if (!user.emailVerified) {
+          throw new HttpException(
+            {
+              message: 'El correo ingresado no ha sido validado',
+              status: 'email-not-verified',
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        } else {
+          return user;
+        }
       } else {
         throw new HttpException(
           {
@@ -48,7 +48,7 @@ export class AuthService {
   }
 
   async login(user: User) {
-    const payload = {email: user.email, id: user.id, role: user['role'] };
+    const payload = { email: user.email, id: user.id, role: user['role'] };
     return {
       access_token: this.jwtService.sign(payload),
       user,

@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -87,7 +87,17 @@ export class UsersService {
   }
   async getUserStatus(email: string) {
     const user = await this.getUserByEmail(email);
-    return user.emailVerified;
+    if (!user) {
+      throw new HttpException(
+        {
+          message: 'Incorrecta combinación de email/contraseña',
+          status: 'invalid',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    } else {
+      return user.emailVerified;
+    }
   }
 
   updateValidateStatus(user_id: number) {
