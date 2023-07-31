@@ -4,6 +4,8 @@ import {
   TypeOrmModuleOptions,
 } from '@nestjs/typeorm';
 import CountrySeeder from 'src/database/seeder/country.seeder';
+import SpecializationsSeeder from 'src/database/seeder/specializations.seeder';
+import StatesSeeder from 'src/database/seeder/states.seeder';
 import { SeederOptions } from 'typeorm-extension';
 
 export default class TypeOrmConfig {
@@ -19,7 +21,7 @@ export default class TypeOrmConfig {
       password: configService.get('DB_PASSWORD'),
       database: 'sigsa_db',
       entities: [dir + '/**/*.entity{.ts,.js}'],
-      seeds: [CountrySeeder],
+      seeds: [CountrySeeder, StatesSeeder, SpecializationsSeeder],
       synchronize: true,
       logging: true,
       // dropSchema: true,

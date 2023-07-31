@@ -36,7 +36,7 @@ export class ProfessionalsController {
     private readonly mailService: MailService,
   ) {}
 
-  @UseGuards(RoleGuard(Role.User))
+  @UseGuards(RoleGuard([Role.User]))
   @Post('/create-my-professional')
   async createMyProfessional(
     @Body() createProfessionalDto: CreateProfessionalDto,
@@ -56,7 +56,7 @@ export class ProfessionalsController {
           message: 'No se pudo crear el profesional',
           status: 'error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
@@ -78,11 +78,11 @@ export class ProfessionalsController {
           message: 'No se pudo crear el profesional',
           status: 'error',
         },
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        HttpStatus.BAD_REQUEST,
       );
     }
   }
-  @UseGuards(RoleGuard(Role.User))
+  @UseGuards(RoleGuard([Role.User]))
   @Get('/my-professionals')
   async getFamilyGroupsByUserId(@Req() request) {
     const user = await this.userService.getUserById(request.user.id);
@@ -92,10 +92,10 @@ export class ProfessionalsController {
   }
 
   // @UseGuards(RoleGuard(Role.Admin))
-  // @UseGuards(RoleGuard(Role.User))
+  @UseGuards(RoleGuard([Role.User]))
   @Get('')
-  async getProfessionals() {
-    return await this.professionalsService.getProfessionals();
+  async getProfessionals(@Req() request) {
+    return await this.professionalsService.getProfessionals(request.user.id);
   }
   @Get('dashboard')
   async getProfessionalsDashboard(@Req() request) {
