@@ -18,7 +18,7 @@ export default class MailConfig {
         secure: true,
         auth: {
           user: configService.get('MAILER_USER'),
-          pass: configService.get('MAILER_PASSWORD'),
+          pass: configService.get('MAILER_API_KEY'),
         },
       },
       defaults: {
