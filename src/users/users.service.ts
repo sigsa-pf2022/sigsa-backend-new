@@ -22,6 +22,10 @@ export class UsersService {
     return await this.userRepository.findOne({ where: { email } });
   }
 
+  async existingUser(email: string, dni: string) {
+    return await this.userRepository.findOne({ where: [{ email }, { dni }] });
+  }
+
   // async getFullUserByUsername(username: number) {
   //   return await this.userRepository.findOne({ where: { username } });
   // }
