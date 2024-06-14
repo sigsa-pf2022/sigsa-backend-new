@@ -49,6 +49,7 @@ $ npm run test:cov
 - Contraseña: `0wn3r`
 - Introducir comando: `use sigsa_db;`
 - En caso de crear un usuario y fallar el envio de email, correr: `update user set email_verified=1 where id=<USER_ID>;`
+
 ## Seed Database
 Para meter datos en la DB hay que correr  `npm run seed`.
 Si falla con el error "MODULE_NOT_FOUND", seguramente haya que renombrar una ruta de importacion en el
