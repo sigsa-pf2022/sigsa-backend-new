@@ -31,9 +31,11 @@ export class UsersController {
   @Post('/create')
   @UsePipes(ValidationPipe)
   async createUser(@Body() createUserDto: CreateUserDto) {
-    const existsUser = await this.userService.getUserByEmail(
+    const existsUser = await this.userService.existingUser(
       createUserDto.email,
+      createUserDto.dni
     );
+    
     if (existsUser) {
       throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
     }

@@ -48,9 +48,12 @@ $ npm run test:cov
 - En el contenedor, correr: `mysql -u owner -p`
 - Contraseña: `0wn3r`
 - Introducir comando: `use sigsa_db;`
-
+- En caso de crear un usuario y fallar el envio de email, correr: `update user set email_verified=1 where id=<USER_ID>;`
 ## Seed Database
 Para meter datos en la DB hay que correr  `npm run seed`.
 Si falla con el error "MODULE_NOT_FOUND", seguramente haya que renombrar una ruta de importacion en el
 archivo que muestra como primero en el Require stack del log del error. Cambiar de src/... a varios ../ hasta encontrar el archivo que necesitamos.
+
+## Drop database
+Para que cada vez q hay un cambio recree la DB hay que poner `dropSchema: true` en [Config](/src/config/typeorm.config.ts)
 
