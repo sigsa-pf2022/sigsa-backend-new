@@ -17,7 +17,7 @@ export class MedsEventService {
   getMedsEventsByUser(user: User) {
     return this.medEventRepository.find({
       where: {
-        createdBy: user,
+        createdBy: { id: user.id },
         status: Not(EventStatus.CANCELED),
       },
       relations: {
@@ -28,10 +28,7 @@ export class MedsEventService {
       },
     });
   }
-  async createMedEvent(
-    user: User,
-    createMedEventDto: CreateMedEventDto,
-  ) {
+  async createMedEvent(user: User, createMedEventDto: CreateMedEventDto) {
     const newMedEvent = this.medEventRepository.create({
       createdBy: user,
       med: createMedEventDto.med,

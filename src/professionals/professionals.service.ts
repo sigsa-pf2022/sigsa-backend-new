@@ -42,7 +42,7 @@ export class ProfessionalsService {
 
   async getMyProfessionalsByUser(user: User) {
     return await this.myProfessionalsRepository.find({
-      where: { createdBy: user },
+      where: { createdBy: { id: user.id } },
     });
   }
 

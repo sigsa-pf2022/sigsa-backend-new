@@ -13,7 +13,7 @@ export abstract class NotificationEvent {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   date: Date;
 
   @ManyToOne(() => User)
@@ -27,9 +27,9 @@ export abstract class NotificationEvent {
   })
   status: string;
 
-  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   updatedAt: Date;
 
-  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 }

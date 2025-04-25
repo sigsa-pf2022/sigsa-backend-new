@@ -1,4 +1,4 @@
-import { NotificationEvent } from 'src/events/entities/notification-event.entity';
+import { NotificationEvent } from '../../events/entities/notification-event.entity';
 import { Entity, JoinColumn, ManyToOne } from 'typeorm';
 import { Meds } from '../meds/meds.entity';
 

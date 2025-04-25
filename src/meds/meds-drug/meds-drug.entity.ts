@@ -11,6 +11,6 @@ export class MedsDrug {
   @Column({ default: false })
   deleted: boolean;
 
-  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 }

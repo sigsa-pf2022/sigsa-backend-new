@@ -26,9 +26,11 @@ export class GeographyService {
     return this.stateRepository.findOne({ where: { id } });
   }
   getStatesByCountry(country: Country) {
-    return this.stateRepository.find({ where: { country } });
+    return this.stateRepository.find({
+      where: { country: { id: country.id } },
+    });
   }
   getCitiesByState(state: State) {
-    return this.cityRepository.find({ where: { state } });
+    return this.cityRepository.find({ where: { state: { id: state.id } } });
   }
 }

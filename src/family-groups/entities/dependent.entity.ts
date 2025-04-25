@@ -24,10 +24,10 @@ export class Dependent {
   })
   bloodType: BloodType;
 
-  @Column({ type: 'datetime' })
+  @Column({ type: 'timestamp' })
   @IsDateString()
   birthday: Date;
 
-  @Column({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 }

@@ -4,7 +4,7 @@ import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { Professionals } from 'src/professionals/entities/my-professional.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { User } from 'src/users/entities/user.entity';
-import { Not, Raw, Repository } from 'typeorm';
+import { In, Not, Raw, Repository } from 'typeorm';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 
@@ -58,7 +58,7 @@ export class AppointmentsService {
         },
       },
       where: {
-        createdBy: user,
+        createdBy: { id: user.id },
         status: Not(EventStatus.CANCELED),
       },
       relations: {
@@ -86,8 +86,8 @@ export class AppointmentsService {
         },
       },
       where: {
-        createdBy: user,
-        status: EventStatus.CREATED,
+        createdBy: { id: user.id },
+        status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
         date: Raw((alias) => `${alias} > NOW()`),
       },
       relations: {

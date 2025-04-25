@@ -14,7 +14,7 @@ export default class TypeOrmConfig {
     url.pop()
     const dir = url.join('/');
     return {
-      type: 'mysql',
+      type: 'postgres',
       host: configService.get('DB_HOST'),
       port: Number(configService.get('DB_PORT)')),
       username: configService.get('DB_USERNAME'),
@@ -23,7 +23,7 @@ export default class TypeOrmConfig {
       entities: [dir + '/**/*.entity{.ts,.js}'],
       seeds: [CountrySeeder, StatesSeeder, SpecializationsSeeder],
       synchronize: true,
-      logging: true,
+      logging: false,
       // dropSchema: true,
     };
   }
