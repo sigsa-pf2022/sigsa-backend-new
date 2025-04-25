@@ -1,43 +1,17 @@
-import { MailerOptions } from '@nestjs-modules/mailer';
-import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
-import { MailerAsyncOptions } from '@nestjs-modules/mailer/dist/interfaces/mailer-async-options.interface';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { join } from 'path';
+import { ConfigService } from '@nestjs/config';
 
-export default class MailConfig {
-  static getMailConfig(configService: ConfigService): MailerOptions {
-    const url = __dirname.split('/');
-    url.pop();
-    url.pop();
-    url.push('mail');
-    const dir = url.join('/');
-    return {
-      transport: {
-        host: configService.get('MAILER_HOST'),
-        port: 465,
-        secure: true,
-        auth: {
-          user: configService.get('MAILER_USER'),
-          pass: configService.get('MAILER_API_KEY'),
-        },
-      },
-      defaults: {
-        from: '"No Reply" <noreply@example.com>',
-      },
-      template: {
-        dir: join(dir, 'templates'),
-        adapter: new HandlebarsAdapter(),
-        options: {
-          strict: true,
-        },
-      },
-    };
-  }
+export interface MailConfig {
+  user: string;
+  pass: string;
+  fromEmail: string;
+  fromName: string;
 }
 
-export const mailConfigAsync: MailerAsyncOptions = {
-  imports: [ConfigModule],
-  useFactory: async (configService: ConfigService): Promise<MailerOptions> =>
-    MailConfig.getMailConfig(configService),
-  inject: [ConfigService],
+export const getMailConfig = (configService: ConfigService): MailConfig => {
+  return {
+    user: configService.get<string>('MAIL_FROM_EMAIL', 'matiasbruno97@gmail.com'),
+    pass: configService.get<string>('GMAIL_APP_PASSWORD'),
+    fromEmail: configService.get<string>('MAIL_FROM_EMAIL', 'matiasbruno97@gmail.com'),
+    fromName: configService.get<string>('MAIL_FROM_NAME', 'No Reply'),
+  };
 };
