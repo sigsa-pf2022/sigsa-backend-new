@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { User } from 'src/users/entities/user.entity';
-import { Not, Repository } from 'typeorm';
+import { In, Not, Raw, Repository } from 'typeorm';
 import { Meds } from '../meds/meds.entity';
 import { CreateMedEventDto } from './dto/create-med-event.dto';
 import { MedEvent } from './med-event.entity';
@@ -28,6 +28,30 @@ export class MedsEventService {
       },
     });
   }
+
+  getNextMedsEventByUser(user: User) {
+    return this.medEventRepository.find({
+      select: {
+        med: {
+          id: true,
+          name: true,
+        },
+      },
+      where: {
+        createdBy: { id: user.id },
+        status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
+        date: Raw((alias) => `${alias} > NOW()`),
+      },
+      relations: {
+        med: true,
+      },
+      order: {
+        date: 'ASC',
+      },
+      take: 3,
+    });
+  }
+  
   async createMedEvent(user: User, createMedEventDto: CreateMedEventDto) {
     const newMedEvent = this.medEventRepository.create({
       createdBy: user,

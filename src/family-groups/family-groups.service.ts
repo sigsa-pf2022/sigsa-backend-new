@@ -38,9 +38,13 @@ export class FamilyGroupsService {
 
   async getFamilyGroupsByUser(user: User) {
     return await this.familyGroupRepository.find({
-      where: { createdBy: { id: user.id } },
+      where: [
+        { createdBy: { id: user.id } },
+        { members: { id: user.id } }
+      ],
       relations: {
         members: true,
+        dependent: true,
       },
     });
   }

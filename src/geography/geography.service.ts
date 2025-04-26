@@ -28,9 +28,13 @@ export class GeographyService {
   getStatesByCountry(country: Country) {
     return this.stateRepository.find({
       where: { country: { id: country.id } },
+      order: { name: 'ASC' },
     });
   }
   getCitiesByState(state: State) {
-    return this.cityRepository.find({ where: { state: { id: state.id } } });
+    return this.cityRepository.find({
+      where: { state: { id: state.id } },
+      order: { name: 'ASC' },
+    });
   }
 }

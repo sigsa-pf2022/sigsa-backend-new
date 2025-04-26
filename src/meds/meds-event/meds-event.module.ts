@@ -12,5 +12,6 @@ import { UsersModule } from 'src/users/users.module';
   ],
   controllers: [MedsEventController],
   providers: [MedsEventService],
+  exports: [MedsEventService],
 })
 export class MedsEventModule {}

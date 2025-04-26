@@ -3,13 +3,18 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppointmentsModule } from 'src/appointments/appointments.module';
 import { UsersModule } from 'src/users/users.module';
 import { EventType } from './entities/event-type.entity';
-import { NotificationEvent } from './entities/notification-event.entity';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
+import { MedsEventModule } from '../meds/meds-event/meds-event.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([NotificationEvent, EventType]), AppointmentsModule, UsersModule],
-  controllers: [ EventsController],
+  imports: [
+    TypeOrmModule.forFeature([EventType]), 
+    AppointmentsModule, 
+    UsersModule,
+    MedsEventModule
+  ],
+  controllers: [EventsController],
   providers: [EventsService],
 })
 export class EventsModule {}
