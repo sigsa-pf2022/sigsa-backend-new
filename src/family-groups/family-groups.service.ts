@@ -38,10 +38,7 @@ export class FamilyGroupsService {
 
   async getFamilyGroupsByUser(user: User) {
     return await this.familyGroupRepository.find({
-      where: [
-        { createdBy: { id: user.id } },
-        { members: { id: user.id } }
-      ],
+      where: [{ createdBy: { id: user.id } }, { members: { id: user.id } }],
       relations: {
         members: true,
         dependent: true,
@@ -57,5 +54,44 @@ export class FamilyGroupsService {
         members: true,
       },
     });
+  }
+
+  // ...existing code...
+  async removeMemberFromGroup(
+    groupId: number,
+    memberId: number,
+    user: User,
+  ): Promise<boolean> {
+    const group = await this.familyGroupRepository.findOne({
+      where: [
+        { id: groupId, createdBy: { id: user.id } },
+        { id: groupId, members: { id: user.id } },
+      ],
+      relations: {
+        members: true,
+        dependent: true,
+        createdBy: true,
+      },
+    });
+
+    if (!group) {
+      console.log('Grupo no encontrado o usuario sin acceso');
+      return false;
+    }
+
+    const originalLength = group.members.length;
+    group.members = group.members.filter((member) => member.id !== memberId);
+
+    if (group.members.length === originalLength) {
+      return false;
+    }
+
+    if (group.members.length === 0) {
+      await this.familyGroupRepository.remove(group);
+    } else {
+      await this.familyGroupRepository.save(group);
+    }
+
+    return true;
   }
 }
