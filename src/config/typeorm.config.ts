@@ -10,9 +10,9 @@ import { SeederOptions } from 'typeorm-extension';
 
 export default class TypeOrmConfig {
   static getOrmConfig(configService: ConfigService): TypeOrmModuleOptions & SeederOptions {
-    const url = __dirname.split('\\');
+    const url = __dirname.split('/');
     url.pop()
-    const dir = url.join('\\');
+    const dir = url.join('/');
     return {
       type: 'postgres',
       host: configService.get('DB_HOST'),
