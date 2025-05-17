@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { CreateDependentDto } from './dto/create-dependent.dto';
 import { Dependent } from './entities/dependent.entity';
 import { FamilyGroup } from './entities/family-group.entity';
-
+import { UsersService } from 'src/users/users.service';
 @Injectable()
 export class FamilyGroupsService {
   constructor(
@@ -13,6 +13,7 @@ export class FamilyGroupsService {
     private familyGroupRepository: Repository<FamilyGroup>,
     @InjectRepository(Dependent)
     private dependentRepository: Repository<Dependent>,
+    private readonly userService: UsersService,
   ) {}
 
   async createGroup(
@@ -38,7 +39,7 @@ export class FamilyGroupsService {
 
   async getFamilyGroupsByUser(user: User) {
     return await this.familyGroupRepository.find({
-      where: [{ createdBy: { id: user.id } }, { members: { id: user.id } }],
+      where: [{ members: { id: user.id } }],
       relations: {
         members: true,
         dependent: true,
@@ -56,7 +57,50 @@ export class FamilyGroupsService {
     });
   }
 
-  // ...existing code...
+  async addMemberToGroup(
+    groupId: number,
+    member: any,
+    user: User,
+  ): Promise<boolean> {
+    const group = await this.familyGroupRepository.findOne({
+      where: [
+        { id: groupId, createdBy: { id: user.id } },
+        { id: groupId, members: { id: user.id } },
+      ],
+      relations: {
+        members: true,
+        createdBy: true,
+        dependent: true,
+      },
+    });
+
+    if (!group) {
+      console.log('Grupo no encontrado o usuario sin acceso');
+      return false;
+    }
+
+    let newMember = null;
+    if (member.dni) {
+      newMember = await this.userService.getFullUserByDni(member.dni);
+    } else if (member.id) {
+      newMember = await this.userService.getUserById(member.id);
+    }
+
+    if (!newMember) {
+      console.log('Miembro no encontrado');
+      return false;
+    }
+
+    if (group.members.find(m => m.id === newMember.id)) {
+      console.log('El miembro ya pertenece al grupo');
+      return false;
+    }
+
+    group.members.push(newMember);
+    await this.familyGroupRepository.save(group);
+    return true;
+  }
+
   async removeMemberFromGroup(
     groupId: number,
     memberId: number,
@@ -75,7 +119,6 @@ export class FamilyGroupsService {
     });
 
     if (!group) {
-      console.log('Grupo no encontrado o usuario sin acceso');
       return false;
     }
 
