@@ -1,8 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import process from 'process';
 import { AppointmentsModule } from './appointments/appointments.module';
 import { AuthModule } from './auth/auth.module';
 import { typeOrmConfigAsync } from './config/typeorm.config';
@@ -18,6 +16,8 @@ import { MedsDrugModule } from './meds/meds-drug/meds-drug.module';
 import { MedsMeasurementUnitModule } from './meds/meds-measurement-unit/meds-measurement-unit.module';
 import { MedsModule } from './meds/meds/meds.module';
 import { MedsEventModule } from './meds/meds-event/meds-event.module';
+import { ScheduleModule } from '@nestjs/schedule';
+import { TasksModule } from './tasks/tasks.module';
 
 @Module({
   imports: [
@@ -36,7 +36,9 @@ import { MedsEventModule } from './meds/meds-event/meds-event.module';
     MedsDrugModule,
     MedsMeasurementUnitModule,
     MedsModule,
-    MedsEventModule
+    MedsEventModule,
+    ScheduleModule.forRoot(),
+    TasksModule
   ],
 })
 export class AppModule {}
