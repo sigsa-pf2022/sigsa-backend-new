@@ -12,6 +12,7 @@ export class TasksService {
 
   @Cron(CronExpression.EVERY_MINUTE)
   async cancelCreatedAppointments() {
+    this.logger.log(`Corriendo task.`);
     const canceledCount = await this.appointmentsService.cancelOldCreatedAppointments();
     if (canceledCount > 0) {
       this.logger.log(`Canceladas ${canceledCount} citas creadas hace más de un día.`);
