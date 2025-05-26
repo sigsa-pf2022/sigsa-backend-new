@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   HttpStatus,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -27,11 +29,19 @@ export class FamilyGroupsController {
       const user = await this.userService.getUserById(request.user.id);
       const { name, members, ...dependent } = createFamilyGroupDto;
       const userMembers = [];
-      for (const member of members) {
-        userMembers.push(
-          await this.userService.getFullUserByDni(member.dni),
-        );
+
+      const existingDnis = members.map((member) => member.dni);
+      if (!existingDnis.includes(user.dni)) {
+        userMembers.push(user);
       }
+
+      for (const member of members) {
+        const foundUser = await this.userService.getFullUserByDni(member.dni);
+        if (!userMembers.find((u) => u.id === foundUser.id)) {
+          userMembers.push(foundUser);
+        }
+      }
+
       const newFamilyGroup: FamilyGroup =
         await this.familyGroupService.createGroup(
           name,
@@ -73,5 +83,80 @@ export class FamilyGroupsController {
       );
     }
     return group;
+  }
+
+  @Delete('/:groupId/members/:memberId')
+  async removeMemberFromFamilyGroup(
+    @Param('groupId') groupId: string,
+    @Param('memberId') memberId: string,
+    @Req() request,
+  ) {
+    try {
+      const user = await this.userService.getUserById(request.user.id);
+      const result = await this.familyGroupService.removeMemberFromGroup(
+        parseInt(groupId),
+        parseInt(memberId),
+        user,
+      );
+      console.log({ groupId, memberId, userId: user.id, result });
+      if (!result) {
+        throw new HttpException(
+          {
+            message: 'No se pudo eliminar el miembro del grupo',
+            status: 'error',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return {
+        status: HttpStatus.OK,
+        message: 'Miembro eliminado correctamente',
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          message: 'Error al eliminar el miembro del grupo',
+          status: 'error',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @Post('/:groupId/members')
+  async addMemberToFamilyGroup(
+    @Param('groupId') groupId: string,
+    @Body() member: any,
+    @Req() request,
+  ) {
+    try {
+      const user = await this.userService.getUserById(request.user.id);
+      const result = await this.familyGroupService.addMemberToGroup(
+        parseInt(groupId),
+        member,
+        user,
+      );
+      if (!result) {
+        throw new HttpException(
+          {
+            message: 'No se pudo agregar el miembro al grupo',
+            status: 'error',
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return {
+        status: HttpStatus.OK,
+        message: 'Miembro agregado correctamente',
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          message: 'Error al agregar el miembro al grupo',
+          status: 'error',
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 }
