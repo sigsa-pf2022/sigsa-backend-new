@@ -1,3 +1,5 @@
+import { LessThan } from 'typeorm';
+import { subDays } from 'date-fns';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventStatus } from 'src/events/entities/notification-event.entity';
@@ -163,5 +165,28 @@ export class AppointmentsService {
         updatedAt: new Date(),
       },
     );
+  }
+
+  /**
+   * Cancela todas las citas con estado 'created' que paso mas de un dia del turno.
+   * @returns La cantidad de citas canceladas.
+   */
+  
+  async cancelOldCreatedAppointments(): Promise<number> {
+    const oneDayAgo = subDays(new Date(), 1);
+    const appointmentsToCancel = await this.appointmentRepository.find({
+      where: {
+        status: EventStatus.CREATED,
+        date: LessThan(oneDayAgo),
+      },
+    });
+    if (appointmentsToCancel.length) {
+      for (const appt of appointmentsToCancel) {
+        appt.status = EventStatus.CANCELED;
+        appt.updatedAt = new Date();
+      }
+      await this.appointmentRepository.save(appointmentsToCancel);
+    }
+    return appointmentsToCancel.length;
   }
 }
