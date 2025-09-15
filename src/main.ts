@@ -9,6 +9,7 @@ async function bootstrap() {
       'http://192.168.0.12:8101',
       'http://localhost:8100',
       'http://localhost:4200',
+      'http://localhost:58089', // back-office dev origin
     ],
     credentials: true,
   });

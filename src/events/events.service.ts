@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { AppointmentsService } from 'src/appointments/appointments.service';
 import { User } from 'src/users/entities/user.entity';
 import { MedsEventService } from 'src/meds/meds-event/meds-event.service';
+import { Dependent } from 'src/family-groups/entities/dependent.entity';
 
 type NextEventType = 'medication' | 'appointment';
 
@@ -26,9 +27,30 @@ export class EventsService {
    * @returns Una lista de eventos ordenanos por fecha
    */
   async getEventsByUser(user: User): Promise<Event[]> {
-    const medEvents = await this.medEventService.getNextMedsEventByUser(user);
+    const medEvents = await this.medEventService.getNextMedsEventsByUser(user);
     const appointments =
       await this.appointmentsService.getNextAppointmentsByUser(user);
+
+    const typedMedEvents = this._transformMedEvents(medEvents);
+    const typedAppointments = this._transformAppointments(appointments);
+
+    const allEvents = this._combineAndSortEvents(
+      typedMedEvents,
+      typedAppointments,
+    );
+
+    return this._lastThreeEvents(allEvents);
+  }
+
+  /**
+   * Devuelve todos los eventos de un dependiente
+   * @param dependent El dependiente al cual consulta sus eventos
+   * @returns Una lista de eventos ordenanos por fecha
+   */
+  async getEventsByDependent(dependent: Dependent): Promise<Event[]> {
+    const medEvents = await this.medEventService.getNextMedsEventsByDependent(dependent);
+    const appointments =
+      await this.appointmentsService.getNextAppointmentsByDependent(dependent);
 
     const typedMedEvents = this._transformMedEvents(medEvents);
     const typedAppointments = this._transformAppointments(appointments);

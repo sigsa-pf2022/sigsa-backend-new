@@ -5,12 +5,14 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Appointment } from './appointment.entity';
 import { UsersModule } from 'src/users/users.module';
 import { ProfessionalsModule } from 'src/professionals/professionals.module';
+import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Appointment]),
     ProfessionalsModule,
     UsersModule,
+    FamilyGroupsModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],

@@ -16,9 +16,11 @@ export abstract class NotificationEvent {
   @Column({ type: 'timestamp' })
   date: Date;
 
-  @ManyToOne(() => User)
-  @JoinColumn()
-  createdBy: User;
+  @Column({ nullable: true })
+  createdById: number;
+
+  @Column({ type: 'enum', enum: ['user', 'dependent', 'professional'] })
+  createdByType: string;
 
   @Column({
     type: 'enum',

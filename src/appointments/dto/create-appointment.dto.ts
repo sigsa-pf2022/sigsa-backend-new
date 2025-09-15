@@ -6,4 +6,6 @@ export class CreateAppointmentDTO {
   myProfessional?: Professionals;
   description: string;
   date: string;
+  createdById?: number;
+  createdByType?: string;
 }

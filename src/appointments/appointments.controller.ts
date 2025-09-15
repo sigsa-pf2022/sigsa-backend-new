@@ -23,6 +23,7 @@ import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 import { Professionals } from '../professionals/entities/my-professional.entity';
 import { formatISO } from 'date-fns';
 import { EditAppointmentDto } from './dto/edit-appointment.dto';
+import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
 
 @UseGuards(JwtAuthGuard)
 @Controller('appointments')
@@ -31,6 +32,7 @@ export class AppointmentsController {
     private appoinmentsService: AppointmentsService,
     private userService: UsersService,
     private professionalsService: ProfessionalsService,
+    private familyGroupsService: FamilyGroupsService,
   ) {}
 
   @Get()
@@ -49,6 +51,33 @@ export class AppointmentsController {
     return appointments;
   }
 
+  @Get('dependent/:id')
+  async getAppointmentsByDependentId(@Param('id', ParseIntPipe) dependentId: number) {
+    const dependent = await this.familyGroupsService.getDependentById(dependentId);
+    if (!dependent) {
+      throw new HttpException(
+        {
+          message: 'Dependiente no encontrado',
+          status: 'error',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    
+    const res: Appointment[] =
+      await this.appoinmentsService.getAppointmentsByDependent(dependent);
+    const appointments = res.map((a) => {
+      return {
+        professional: a.myProfessional ? a.myProfessional : a.professional,
+        date: a.date,
+        id: a.id,
+        status: a.status,
+        description: a.description,
+      };
+    });
+    return appointments;
+  }
+
   @Get(':id')
   async getAppointment(@Param('id', ParseIntPipe) id: number) {
     const appointment = await this.appoinmentsService.getAppointmentById(id);
@@ -57,7 +86,7 @@ export class AppointmentsController {
         ? appointment.myProfessional
         : appointment.professional,
       isMyProfessional: appointment.myProfessional ? true : false,
-      date: formatISO(new Date(appointment.date.toLocaleString())),
+      date: appointment.date,
       description: appointment.description,
     };
   }
@@ -78,7 +107,32 @@ export class AppointmentsController {
     @Body() createAppointmentDto: CreateAppointmentDTO,
   ) {
     try {
+      console.log('Datos recibidos para crear appointment:', createAppointmentDto);
+      
       const user = await this.userService.getUserById(req.user.id);
+      
+      // Si no se especifica createdById/createdByType, usar el usuario autenticado
+      if (!createAppointmentDto.createdById && !createAppointmentDto.createdByType) {
+        createAppointmentDto.createdById = user.id;
+        createAppointmentDto.createdByType = 'user';
+      }
+      
+      // Determinar el creador basado en el tipo
+      let creator: any = user;
+      if (createAppointmentDto.createdByType === 'dependent') {
+        // Obtener el dependiente real por ID
+        creator = await this.familyGroupsService.getDependentById(createAppointmentDto.createdById);
+        if (!creator) {
+          throw new HttpException(
+            {
+              message: 'Dependiente no encontrado',
+              status: 'error',
+            },
+            HttpStatus.NOT_FOUND,
+          );
+        }
+      }
+      
       let appointment: Appointment;
       if (createAppointmentDto.myProfessional) {
         const myProfessional: Professionals =
@@ -88,7 +142,7 @@ export class AppointmentsController {
         appointment =
           await this.appoinmentsService.createAppointmentWithMyProfessional(
             createAppointmentDto,
-            user,
+            creator,
             myProfessional,
           );
       } else {
@@ -99,10 +153,11 @@ export class AppointmentsController {
         appointment =
           await this.appoinmentsService.createAppointmentWithProfessionalUser(
             createAppointmentDto,
-            user,
+            creator,
             professional,
           );
       }
+      
       const appt = {
         id: appointment.id,
         professional: appointment.myProfessional

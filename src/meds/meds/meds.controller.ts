@@ -12,7 +12,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { CreateMedsDto } from './dto/create-meds.dto';
-import { UpdateMedsDto } from './dto/update-meds.dto copy';
+import { UpdateMedsDto } from './dto/update-meds.dto';
 import { MedsService } from './meds.service';
 
 @Controller('meds')
@@ -32,7 +32,7 @@ export class MedsController {
     return { data: res[0], count: res[1] };
   }
   // @UseGuards(RoleGuard(Role.Admin))
-  @UsePipes(ValidationPipe)
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   @Post('')
   async createMed(
     @Req() request,
@@ -65,6 +65,7 @@ export class MedsController {
   }
 
   @Put('/:id')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async updateMed(@Req() request, @Body() updateMedsDto: UpdateMedsDto) {
     return this.medsService.updateMed(request.params.id, updateMedsDto);
   }

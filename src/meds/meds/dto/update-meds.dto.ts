@@ -1,12 +1,13 @@
-import { IsInt, IsNotEmpty, IsOptional, IsPositive } from 'class-validator';
+import { IsInt, IsOptional, IsPositive, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 
-// Se aceptan IDs numéricos para las relaciones.
-export class CreateMedsDto {
-  @IsNotEmpty()
-  name: string;
+export class UpdateMedsDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
 
   @IsOptional()
+  @IsString()
   laboratory?: string;
 
   @IsOptional()
@@ -14,33 +15,33 @@ export class CreateMedsDto {
   @IsInt()
   code?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  dosage: number;
+  dosage?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  drug: number;
+  drug?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  shape: number;
+  shape?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  type: number;
+  type?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @IsPositive()
-  measurementUnit: number;
+  measurementUnit?: number;
 }

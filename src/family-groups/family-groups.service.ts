@@ -169,4 +169,10 @@ export class FamilyGroupsService {
       return false;
     }
   }
+
+  async getDependentById(id: number): Promise<Dependent | null> {
+    return this.dependentRepository.findOne({
+      where: { id }
+    });
+  }
 }

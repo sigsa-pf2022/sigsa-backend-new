@@ -10,5 +10,6 @@ import { UsersModule } from '../users/users.module';
   imports: [TypeOrmModule.forFeature([Dependent, FamilyGroup]), UsersModule],
   providers: [FamilyGroupsService],
   controllers: [FamilyGroupsController],
+  exports: [FamilyGroupsService],
 })
 export class FamilyGroupsModule {}

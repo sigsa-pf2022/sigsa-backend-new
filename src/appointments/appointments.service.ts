@@ -6,6 +6,7 @@ import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { Professionals } from 'src/professionals/entities/my-professional.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { User } from 'src/users/entities/user.entity';
+import { Dependent } from 'src/family-groups/entities/dependent.entity';
 import { In, Not, Raw, Repository } from 'typeorm';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
@@ -17,13 +18,25 @@ export class AppointmentsService {
     private appointmentRepository: Repository<Appointment>,
   ) {}
 
+  // Helper para determinar el tipo de creador
+  private getCreatorType(creator: User | Dependent | ProfessionalUser): string {
+    if (creator instanceof Dependent) {
+      return 'dependent';
+    } else if (creator instanceof ProfessionalUser) {
+      return 'professional';
+    } else {
+      return 'user';
+    }
+  }
+
   createAppointmentWithProfessionalUser(
     appointment: CreateAppointmentDTO,
-    user: User,
+    creator: User | Dependent,
     professional: ProfessionalUser,
   ) {
     const newAppointment = this.appointmentRepository.create({
-      createdBy: user,
+      createdById: creator.id,
+      createdByType: this.getCreatorType(creator),
       date: appointment.date,
       description: appointment.description,
       professional,
@@ -33,11 +46,12 @@ export class AppointmentsService {
 
   async createAppointmentWithMyProfessional(
     appointment: CreateAppointmentDTO,
-    user: User,
+    creator: User | Dependent,
     myProfessional: Professionals,
   ) {
     const newAppointment = this.appointmentRepository.create({
-      createdBy: user,
+      createdById: creator.id,
+      createdByType: this.getCreatorType(creator),
       myProfessional,
       date: appointment.date,
       description: appointment.description,
@@ -60,7 +74,37 @@ export class AppointmentsService {
         },
       },
       where: {
-        createdBy: { id: user.id },
+        createdById: user.id,
+        createdByType: 'user',
+        status: Not(EventStatus.CANCELED),
+      },
+      relations: {
+        myProfessional: true,
+        professional: true,
+      },
+      order: {
+        date: 'DESC',
+      },
+    });
+  }
+
+  getAppointmentsByDependent(dependent: Dependent) {
+    return this.appointmentRepository.find({
+      select: {
+        professional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+        myProfessional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      where: {
+        createdById: dependent.id,
+        createdByType: 'dependent',
         status: Not(EventStatus.CANCELED),
       },
       relations: {
@@ -88,7 +132,8 @@ export class AppointmentsService {
         },
       },
       where: {
-        createdBy: { id: user.id },
+        createdById: user.id,
+        createdByType: 'user',
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
         date: Raw((alias) => `${alias} > NOW()`),
       },
@@ -100,6 +145,67 @@ export class AppointmentsService {
         date: 'ASC',
       },
       take: 3,
+    });
+  }
+
+  getNextAppointmentsByDependent(dependent: Dependent) {
+    return this.appointmentRepository.find({
+      select: {
+        professional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+        myProfessional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      where: {
+        createdById: dependent.id,
+        createdByType: 'dependent',
+        status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
+        date: Raw((alias) => `${alias} > NOW()`),
+      },
+      relations: {
+        myProfessional: true,
+        professional: true,
+      },
+      order: {
+        date: 'ASC',
+      },
+      take: 3,
+    });
+  }
+
+  // Método genérico para obtener citas por creador
+  getAppointmentsByCreator(creator: User | Dependent) {
+    return this.appointmentRepository.find({
+      select: {
+        professional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+        myProfessional: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
+      where: {
+        createdById: creator.id,
+        createdByType: this.getCreatorType(creator),
+        status: Not(EventStatus.CANCELED),
+      },
+      relations: {
+        myProfessional: true,
+        professional: true,
+      },
+      order: {
+        date: 'DESC',
+      },
     });
   }
 
@@ -154,6 +260,7 @@ export class AppointmentsService {
       },
     );
   }
+
   async updateAppointmentWithMyProfessional(id: number, body) {
     return this.appointmentRepository.update(
       { id },
@@ -167,11 +274,6 @@ export class AppointmentsService {
     );
   }
 
-  /**
-   * Cancela todas las citas con estado 'created' que paso mas de un dia del turno.
-   * @returns La cantidad de citas canceladas.
-   */
-  
   async cancelOldCreatedAppointments(): Promise<number> {
     const oneDayAgo = subDays(new Date(), 1);
     const appointmentsToCancel = await this.appointmentRepository.find({
