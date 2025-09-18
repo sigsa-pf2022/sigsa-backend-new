@@ -67,36 +67,47 @@ export class EventsService {
    * Transform medication events to the common Event format
    */
   private _transformMedEvents(medEvents: any[]): Event[] {
-    return medEvents.map((event) => ({
-      id: event.id,
-      type: 'medication',
-      title: event.med.name,
-      subtitle: event.med.dosage.toString(),
-      date: event.date,
-    }));
+    if (!Array.isArray(medEvents)) return [];
+    return (medEvents
+      .filter((event) => event && event.med)
+      .map((event) => ({
+        id: event.id,
+        type: 'medication' as const,
+        title: event.med?.name || 'Medicamento',
+        subtitle: (event.med?.dosage !== undefined && event.med?.dosage !== null)
+          ? event.med.dosage.toString()
+          : '',
+        date: event.date instanceof Date ? event.date : new Date(event.date),
+      }))
+      .filter(e => !isNaN(e.date.getTime()))) as Event[];
   }
 
   /**
    * Transform appointments to the common Event format
    */
   private _transformAppointments(appointments: any[]): Event[] {
-    return appointments.map((event) => ({
-      id: event.id,
-      type: 'appointment',
-      title: this._getProfessionalName(event),
-      subtitle: event.description || '',
-      date: event.date,
-    }));
+    if (!Array.isArray(appointments)) return [];
+    return (appointments
+      .filter(a => a)
+      .map((event) => ({
+        id: event.id,
+        type: 'appointment' as const,
+        title: this._getProfessionalName(event),
+        subtitle: event.description || '',
+        date: event.date instanceof Date ? event.date : new Date(event.date),
+      }))
+      .filter(e => !isNaN(e.date.getTime()))) as Event[];
   }
 
   /**
    * Extract professional name from an appointment
    */
   private _getProfessionalName(event: any): string {
-    if (event.myProfessional) {
-      return `${event.myProfessional.firstName} ${event.myProfessional.lastName}`;
-    }
-    return `${event.professional.firstName} ${event.professional.lastName}`;
+    const prof = event?.myProfessional || event?.professional;
+    if (!prof) return 'Profesional';
+    const first = prof.firstName || '';
+    const last = prof.lastName || '';
+    return `${first} ${last}`.trim() || 'Profesional';
   }
 
   /**
@@ -106,7 +117,14 @@ export class EventsService {
     medEvents: Event[],
     appointments: Event[],
   ): Event[] {
-    const allEvents = [...medEvents, ...appointments];
+    const normalize = (e: Event) => ({
+      ...e,
+      date: e.date instanceof Date ? e.date : new Date(e.date),
+    });
+    const allEvents = [...(medEvents || []), ...(appointments || [])]
+      .filter(e => e && e.date)
+      .map(normalize)
+      .filter(e => !isNaN(e.date.getTime()));
     return allEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 

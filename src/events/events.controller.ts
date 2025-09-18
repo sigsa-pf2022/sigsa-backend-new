@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Req, UseGuards, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { UsersService } from 'src/users/users.service';
 import { EventsService } from './events.service';
@@ -23,8 +23,13 @@ export class EventsController {
   async getNextEventsByDependent(@Param('id', ParseIntPipe) dependentId: number) {
     const dependent = await this.familyGroupsService.getDependentById(dependentId);
     if (!dependent) {
-      throw new Error('Dependiente no encontrado');
+      throw new NotFoundException('Dependiente no encontrado');
     }
-    return await this.eventsService.getEventsByDependent(dependent);
+    try {
+      return await this.eventsService.getEventsByDependent(dependent);
+    } catch (e) {
+      console.error('EventsController:getNextEventsByDependent error', e);
+      throw new InternalServerErrorException('No fue posible obtener los eventos del dependiente');
+    }
   }
 }
