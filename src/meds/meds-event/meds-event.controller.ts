@@ -7,6 +7,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Req,
   UseGuards,
   UsePipes,
@@ -18,6 +19,7 @@ import { CreateMedEventDto } from './dto/create-med-event.dto';
 import { MedEvent } from './med-event.entity';
 import { MedsEventService } from './meds-event.service';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
+import { UpdateMedEventDto } from './dto/update-med-event.dto';
 
 @UseGuards(JwtAuthGuard)
 @Controller('meds-event')
@@ -101,6 +103,29 @@ export class MedsEventController {
         },
         HttpStatus.BAD_REQUEST,
       );
+    }
+  }
+
+  @Get(':id')
+  async getMedEventById(@Param('id', ParseIntPipe) id: number) {
+    const medEvent = await this.medsEventService.getMedEventById(id);
+    if (!medEvent) {
+      throw new HttpException({ message: 'Recordatorio no encontrado', status: 'error' }, HttpStatus.NOT_FOUND);
+    }
+    return medEvent;
+  }
+
+  @Put(':id')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateMedEvent(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateMedEventDto: UpdateMedEventDto,
+  ) {
+    try {
+      const updated = await this.medsEventService.updateMedEvent(id, updateMedEventDto as any);
+      return { status: HttpStatus.OK, medEvent: updated };
+    } catch (error) {
+      throw new HttpException({ message: 'No se pudo actualizar el recordatorio', status: 'error' }, HttpStatus.BAD_REQUEST);
     }
   }
 }

@@ -168,10 +168,17 @@ export class MedsEventService {
   }
 
   async updateMedEvent(id: number, updateData: Partial<CreateMedEventDto>) {
-    return this.medEventRepository.update(id, {
-      ...updateData,
-      updatedAt: new Date(),
-    });
+    const patch: any = { updatedAt: new Date() };
+    if (updateData.date) {
+      const d = new Date(updateData.date as any);
+      if (isNaN(d.getTime())) throw new Error('Fecha inválida');
+      patch.date = d;
+    }
+    if ((updateData as any).medId) {
+      patch.med = { id: (updateData as any).medId } as any;
+    }
+    await this.medEventRepository.update(id, patch);
+    return this.getMedEventById(id);
   }
 
   async cancelMedEvent(id: number) {
