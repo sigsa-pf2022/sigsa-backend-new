@@ -18,6 +18,7 @@ import { MedsModule } from './meds/meds/meds.module';
 import { MedsEventModule } from './meds/meds-event/meds-event.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { TasksModule } from './tasks/tasks.module';
     MedsEventModule,
     ScheduleModule.forRoot(),
     TasksModule
+    ,NotificationsModule
   ],
 })
 export class AppModule {}

@@ -175,4 +175,14 @@ export class FamilyGroupsService {
       where: { id }
     });
   }
+
+  /**
+   * Obtiene el grupo familiar asociado a un dependiente dado su id.
+   */
+  async findByDependentId(dependentId: number): Promise<FamilyGroup | null> {
+    return this.familyGroupRepository.findOne({
+      where: { dependent: { id: dependentId } },
+      relations: { members: true, createdBy: true, dependent: true },
+    });
+  }
 }
