@@ -12,10 +12,12 @@ async function bootstrap() {
   app.setGlobalPrefix('/api');
   app.enableCors({
     origin: [
+      'http://192.168.0.138:8101',
+      'http://192.168.0.138:4200',
       'http://192.168.0.12:8101',
       'http://localhost:8100',
       'http://localhost:4200',
-      'http://localhost:54229', // back-office dev origin
+      'http://localhost:54733', // back-office dev origin
     ],
     credentials: true,
   });
