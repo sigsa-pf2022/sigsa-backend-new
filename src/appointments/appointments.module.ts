@@ -6,6 +6,7 @@ import { Appointment } from './appointment.entity';
 import { UsersModule } from 'src/users/users.module';
 import { ProfessionalsModule } from 'src/professionals/professionals.module';
 import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
     ProfessionalsModule,
     UsersModule,
     FamilyGroupsModule,
+    NotificationsModule,
   ],
   providers: [AppointmentsService],
   controllers: [AppointmentsController],
