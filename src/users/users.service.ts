@@ -35,7 +35,7 @@ export class UsersService {
 
   async getUserByDni(dni: string) {
     return await this.userRepository.findOne({
-      select: { firstName: true, lastName: true, dni: true },
+      select: { id: true, firstName: true, lastName: true, dni: true },
       where: { dni },
     });
   }

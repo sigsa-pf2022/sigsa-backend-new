@@ -6,7 +6,10 @@ import { ProfessionalUser } from './entities/professional-user.entity';
 import { UsersModule } from 'src/users/users.module';
 import { ProfessionalSpecialization } from './entities/professional-specialization.entity';
 import { Professionals } from './entities/my-professional.entity';
+import { PatientProfessional } from './entities/patient-professional.entity';
 import { MailModule } from 'src/mail/mail.module';
+import { DocumentsModule } from 'src/documents/documents.module';
+import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
 
 @Module({
   imports: [
@@ -14,9 +17,12 @@ import { MailModule } from 'src/mail/mail.module';
       ProfessionalUser,
       ProfessionalSpecialization,
       Professionals,
+      PatientProfessional,
     ]),
     UsersModule,
     MailModule,
+    DocumentsModule,
+    FamilyGroupsModule,
   ],
   providers: [ProfessionalsService],
   exports: [ProfessionalsService],

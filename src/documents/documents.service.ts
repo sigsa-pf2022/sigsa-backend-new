@@ -106,6 +106,32 @@ export class DocumentsService {
     });
   }
 
+  async getDocumentsByPatient(patientId: number, patientType: string) {
+    return this.documentRepository.find({
+      where: {
+        createdById: patientId,
+        createdByType: patientType,
+        status: Not(EventStatus.CANCELED),
+      },
+      order: {
+        documentDate: 'DESC',
+      },
+      select: [
+        'id',
+        'title',
+        'description',
+        'fileName',
+        'mimeType',
+        'fileSize',
+        'documentDate',
+        'date',
+        'status',
+        'createdAt',
+        'updatedAt',
+      ],
+    });
+  }
+
   async getDocumentById(id: number) {
     // IMPORTANTE: Incluir fileContent explícitamente porque TypeORM no carga campos TEXT grandes por defecto
     const doc = await this.documentRepository.findOne({
