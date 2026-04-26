@@ -1,3 +1,4 @@
+import './src/bootstrap/crypto.polyfill';
 import { config } from './src/config/env.config';
 import { MainSeeder } from './src/database/seeder/main.seeder';
 import { DataSource, DataSourceOptions } from 'typeorm';

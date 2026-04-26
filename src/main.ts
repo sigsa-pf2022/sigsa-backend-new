@@ -1,3 +1,4 @@
+import './bootstrap/crypto.polyfill';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import * as express from 'express';
@@ -18,6 +19,8 @@ async function bootstrap() {
       'http://localhost:8100',
       'http://localhost:4200',
       'http://localhost:54733', // back-office dev origin
+      'capacitor://localhost',
+      'ionic://localhost',
     ],
     credentials: true,
   });
