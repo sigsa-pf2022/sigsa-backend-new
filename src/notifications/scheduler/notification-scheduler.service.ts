@@ -69,9 +69,9 @@ export class NotificationSchedulerService {
       title,
       body,
       data: {
-        notificationId: notification.id,
-        type: notification.type,
-        referenceId: notification.referenceId,
+        notificationId: String(notification.id),
+        type: String(notification.type),
+        referenceId: String(notification.referenceId),
       },
     };
   }
