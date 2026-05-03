@@ -7,6 +7,16 @@ import { NotificationType } from './enums/notification-type.enum';
 import { NotificationStatus } from './enums/notification-status.enum';
 import { NotificationRecipientStatus } from './enums/notification-recipient-status.enum';
 
+interface CreateNotificationParams {
+  referenceId: number;
+  type: NotificationType;
+  groupId: number | null;
+  scheduledFor: Date;
+  leadMinutes: number;
+  memberUserIds: number[];
+  payload?: any;
+}
+
 interface CreateAppointmentNotificationParams {
   appointmentId: number;
   groupId: number | null;
@@ -25,23 +35,18 @@ export class NotificationsService {
     private readonly recipientRepo: Repository<NotificationRecipient>,
   ) {}
 
-  /**
-   * Crea (si no existe) una notificación grupal para un turno y todos sus destinatarios.
-   * Es idempotente respecto (type, referenceId, groupId)
-   */
-  async createForAppointmentGroup(params: CreateAppointmentNotificationParams) {
-    const { appointmentId, groupId, scheduledFor, leadMinutes, memberUserIds, payload } = params;
+  private async createNotification(params: CreateNotificationParams) {
+    const { referenceId, type, groupId, scheduledFor, leadMinutes, memberUserIds, payload } = params;
 
-    // Verificar si ya existe
     let notification = await this.notificationRepo.findOne({
-      where: { type: NotificationType.APPOINTMENT, referenceId: appointmentId, groupId: groupId || null },
+      where: { type, referenceId, groupId: groupId || null },
       relations: ['recipients'],
     });
 
     if (!notification) {
       notification = this.notificationRepo.create({
-        type: NotificationType.APPOINTMENT,
-        referenceId: appointmentId,
+        type,
+        referenceId,
         groupId: groupId || null,
         scheduledFor,
         leadMinutes,
@@ -51,10 +56,9 @@ export class NotificationsService {
       notification = await this.notificationRepo.save(notification);
     }
 
-    // Asegurar recipients (idempotente)
-    const existingRecipientUserIds = new Set((notification.recipients || []).map(r => r.userId));
+    const existingIds = new Set((notification.recipients || []).map(r => r.userId));
     const newRecipients = memberUserIds
-      .filter(uid => !existingRecipientUserIds.has(uid))
+      .filter(uid => !existingIds.has(uid))
       .map(uid => this.recipientRepo.create({
         notificationId: notification.id,
         userId: uid,
@@ -66,7 +70,6 @@ export class NotificationsService {
 
     if (newRecipients.length) {
       await this.recipientRepo.save(newRecipients);
-      // refrescar
       notification = await this.notificationRepo.findOne({
         where: { id: notification.id },
         relations: ['recipients'],
@@ -74,5 +77,39 @@ export class NotificationsService {
     }
 
     return notification;
+  }
+
+  async createForMedEventGroup(params: {
+    medEventId: number;
+    groupId: number | null;
+    scheduledFor: Date;
+    memberUserIds: number[];
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.medEventId,
+      type: NotificationType.MEDICATION,
+      groupId: params.groupId,
+      scheduledFor: params.scheduledFor,
+      leadMinutes: 5,
+      memberUserIds: params.memberUserIds,
+      payload: params.payload,
+    });
+  }
+
+  /**
+   * Crea (si no existe) una notificación grupal para un turno y todos sus destinatarios.
+   * Es idempotente respecto (type, referenceId, groupId)
+   */
+  async createForAppointmentGroup(params: CreateAppointmentNotificationParams) {
+    return this.createNotification({
+      referenceId: params.appointmentId,
+      type: NotificationType.APPOINTMENT,
+      groupId: params.groupId,
+      scheduledFor: params.scheduledFor,
+      leadMinutes: params.leadMinutes,
+      memberUserIds: params.memberUserIds,
+      payload: params.payload,
+    });
   }
 }

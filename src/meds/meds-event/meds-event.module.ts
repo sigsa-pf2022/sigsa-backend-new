@@ -6,12 +6,14 @@ import { MedEvent } from './med-event.entity';
 import { Meds } from '../meds/meds.entity';
 import { UsersModule } from 'src/users/users.module';
 import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
-  TypeOrmModule.forFeature([MedEvent, Meds]),
+    TypeOrmModule.forFeature([MedEvent, Meds]),
     UsersModule,
     FamilyGroupsModule,
+    NotificationsModule,
   ],
   controllers: [MedsEventController],
   providers: [MedsEventService],

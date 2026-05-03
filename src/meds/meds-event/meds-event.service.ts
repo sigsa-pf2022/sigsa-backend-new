@@ -4,6 +4,8 @@ import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Dependent } from 'src/family-groups/entities/dependent.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
+import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
+import { NotificationsService } from 'src/notifications/notifications.service';
 import { In, Not, Raw, Repository } from 'typeorm';
 import { Meds } from '../meds/meds.entity';
 import { CreateMedEventDto } from './dto/create-med-event.dto';
@@ -14,6 +16,10 @@ export class MedsEventService {
   constructor(
     @InjectRepository(MedEvent)
     private medEventRepository: Repository<MedEvent>,
+    @InjectRepository(Meds)
+    private medsRepository: Repository<Meds>,
+    private familyGroupsService: FamilyGroupsService,
+    private notificationsService: NotificationsService,
   ) {}
 
   // Helper para determinar el tipo de creador
@@ -160,10 +166,48 @@ export class MedsEventService {
       med: { id: createMedEventDto.medId } as any,
       date: dateObj,
     });
+    const saved = await this.medEventRepository.save(newMedEvent);
+    this.tryCreateNotificationForMedEvent(saved, creator, createMedEventDto.medId);
+    return saved;
+  }
+
+  private async tryCreateNotificationForMedEvent(medEvent: MedEvent, creator: User | Dependent, medId: number) {
     try {
-      return await this.medEventRepository.save(newMedEvent);
-    } catch (e) {
-      throw e;
+      const isDependent = creator instanceof Dependent;
+      let groupId: number | null = null;
+      let memberUserIds: number[] = [];
+
+      if (isDependent) {
+        const group = await this.familyGroupsService.findByDependentId(creator.id);
+        if (!group) return;
+        groupId = group.id;
+        const ids = new Set<number>();
+        if (group.createdBy?.id) ids.add(group.createdBy.id);
+        (group.members || []).forEach(m => m?.id && ids.add(m.id));
+        memberUserIds = Array.from(ids);
+      } else {
+        memberUserIds = [(creator as User).id];
+      }
+
+      if (!memberUserIds.length) return;
+
+      const med = await this.medsRepository.findOne({ where: { id: medId } });
+      const dependentName = isDependent
+        ? `${(creator as Dependent).firstName} ${(creator as Dependent).lastName}`.trim()
+        : null;
+
+      await this.notificationsService.createForMedEventGroup({
+        medEventId: medEvent.id,
+        groupId,
+        scheduledFor: medEvent.date,
+        memberUserIds,
+        payload: {
+          medName: med?.name || 'Medicamento',
+          dependentName,
+        },
+      });
+    } catch (err) {
+      console.error('Error creando notificación de medicamento:', err?.message || err);
     }
   }
 
