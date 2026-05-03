@@ -21,6 +21,7 @@ async function bootstrap() {
       'http://localhost:54733', // back-office dev origin
       'capacitor://localhost',
       'ionic://localhost',
+      'http://localhost',
     ],
     credentials: true,
   });
