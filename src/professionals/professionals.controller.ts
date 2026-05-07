@@ -5,8 +5,11 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Param,
+  ParseIntPipe,
   Post,
   Put,
+  Query,
   Req,
   UseGuards,
   UsePipes,
@@ -22,6 +25,7 @@ import { MailService } from 'src/mail/mail.service';
 import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
+import { CreatePatientProfessionalDto } from './dto/create-patient-professional.dto';
 import { CreateProfessionalSpecializationDto } from './dto/create-professional-specialization.dto';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { Professionals } from './entities/my-professional.entity';
@@ -179,6 +183,78 @@ export class ProfessionalsController {
       request.params.id,
       true,
     );
+  }
+
+  // ---- Patient-Professional endpoints ----
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @UsePipes(ValidationPipe)
+  @Post('/patients')
+  async linkPatient(
+    @Body() dto: CreatePatientProfessionalDto,
+    @Req() request,
+  ) {
+    try {
+      const link = await this.professionalsService.linkPatient(
+        request.user.id,
+        dto,
+      );
+      return { status: HttpStatus.CREATED, id: link.id };
+    } catch (error) {
+      throw new HttpException(
+        { message: error.message || 'No se pudo vincular al paciente', status: 'error' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Delete('/patients/:patientId')
+  async unlinkPatient(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Req() request,
+  ) {
+    try {
+      await this.professionalsService.unlinkPatient(
+        request.user.id,
+        patientId,
+        patientType,
+      );
+      return { status: HttpStatus.OK, message: 'Paciente desvinculado' };
+    } catch (error) {
+      throw new HttpException(
+        { message: error.message || 'No se pudo desvincular al paciente', status: 'error' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/patients')
+  async getPatients(@Req() request) {
+    return this.professionalsService.getPatients(request.user.id);
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/patients/:patientId/documents')
+  async getPatientDocuments(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Req() request,
+  ) {
+    try {
+      return await this.professionalsService.getPatientDocuments(
+        request.user.id,
+        patientId,
+        patientType,
+      );
+    } catch (error) {
+      throw new HttpException(
+        { message: error.message || 'No se pudieron obtener los documentos', status: 'error' },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
   }
 
   @Get('/monthly-quantity')
