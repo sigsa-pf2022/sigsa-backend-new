@@ -19,6 +19,7 @@ async function bootstrap() {
       'http://localhost:8100',
       'http://localhost:4200',
       'http://localhost:54733', // back-office dev origin
+      'http://10.0.2.2:8100',  // emulador Android con live reload
       'capacitor://localhost',
       'ionic://localhost',
       'http://localhost',

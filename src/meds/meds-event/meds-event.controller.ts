@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Req,
   UseGuards,
@@ -71,6 +72,40 @@ export class MedsEventController {
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  @Get(':id')
+  async getMedEventById(@Param('id', ParseIntPipe) id: number) {
+    const medEvent = await this.medsEventService.getMedEventById(id);
+    if (!medEvent) {
+      throw new HttpException(
+        { message: 'Recordatorio no encontrado', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return medEvent;
+  }
+
+  @Patch(':id')
+  @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  async updateMedEvent(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateData: Partial<CreateMedEventDto>,
+  ) {
+    await this.medsEventService.updateMedEvent(id, updateData);
+    return { status: HttpStatus.OK };
+  }
+
+  @Patch(':id/cancel')
+  async cancelMedEvent(@Param('id', ParseIntPipe) id: number) {
+    await this.medsEventService.cancelMedEvent(id);
+    return { status: HttpStatus.OK };
+  }
+
+  @Patch(':id/confirm')
+  async confirmMedEvent(@Param('id', ParseIntPipe) id: number) {
+    await this.medsEventService.confirmMedEvent(id);
+    return { status: HttpStatus.OK };
   }
 
   @Post('dependent/:id')
