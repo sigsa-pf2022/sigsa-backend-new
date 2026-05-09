@@ -212,8 +212,10 @@ export class MedsEventService {
   }
 
   async updateMedEvent(id: number, updateData: Partial<CreateMedEventDto>) {
+    const { medId, ...rest } = updateData as any;
     return this.medEventRepository.update(id, {
-      ...updateData,
+      ...rest,
+      ...(medId ? { med: { id: medId } as any } : {}),
       updatedAt: new Date(),
     });
   }
