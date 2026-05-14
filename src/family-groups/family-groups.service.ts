@@ -1,11 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { User } from 'src/users/entities/user.entity';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { CreateDependentDto } from './dto/create-dependent.dto';
 import { Dependent } from './entities/dependent.entity';
 import { FamilyGroup } from './entities/family-group.entity';
 import { UsersService } from 'src/users/users.service';
+import { PatientProfessional } from 'src/professionals/entities/patient-professional.entity';
+import { PatientProfessionalStatus } from 'src/professionals/enums/patient-professional-status.enum';
+import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
+import { NotificationsService } from 'src/notifications/notifications.service';
+
 @Injectable()
 export class FamilyGroupsService {
   constructor(
@@ -13,7 +22,12 @@ export class FamilyGroupsService {
     private familyGroupRepository: Repository<FamilyGroup>,
     @InjectRepository(Dependent)
     private dependentRepository: Repository<Dependent>,
+    @InjectRepository(PatientProfessional)
+    private patientProfessionalRepository: Repository<PatientProfessional>,
+    @InjectRepository(ProfessionalUser)
+    private professionalUserRepository: Repository<ProfessionalUser>,
     private readonly userService: UsersService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async createGroup(
@@ -124,7 +138,6 @@ export class FamilyGroupsService {
         return false;
       }
 
-      // Verificar que el usuario tiene acceso al grupo
       const hasAccess =
         group.createdBy.id === user.id ||
         group.members.some((member) => member.id === user.id);
@@ -134,36 +147,29 @@ export class FamilyGroupsService {
         return false;
       }
 
-      // Verificar que el miembro existe en el grupo
       const memberExists = group.members.find((member) => member.id === memberId);
       if (!memberExists) {
         console.log('El miembro no pertenece al grupo');
         return false;
       }
 
-      // Verificar si el que abandona es el admin/creador
       const isAdminLeaving = group.createdBy.id === memberId;
 
-      // Eliminar el miembro específico
       group.members = group.members.filter((member) => member.id !== memberId);
 
       if (group.members.length === 0) {
-        // Si no quedan miembros, eliminar el grupo
         await this.familyGroupRepository.remove(group);
         console.log('Grupo eliminado porque no quedan miembros');
       } else if (isAdminLeaving) {
-        // Si el admin abandona pero quedan miembros, delegar la administración
-        const newAdmin = group.members[0]; // Tomar el primer miembro restante
+        const newAdmin = group.members[0];
         group.createdBy = newAdmin;
         await this.familyGroupRepository.save(group);
         console.log(`Administración delegada al usuario ${newAdmin.id}`);
       } else {
-        // Caso normal: solo guardar sin el miembro eliminado
         await this.familyGroupRepository.save(group);
         console.log('Miembro eliminado correctamente');
       }
       return true;
-
     } catch (error) {
       console.error('Error en removeMemberFromGroup:', error);
       return false;
@@ -171,18 +177,154 @@ export class FamilyGroupsService {
   }
 
   async getDependentById(id: number): Promise<Dependent | null> {
-    return this.dependentRepository.findOne({
-      where: { id }
-    });
+    return this.dependentRepository.findOne({ where: { id } });
   }
 
-  /**
-   * Obtiene el grupo familiar asociado a un dependiente dado su id.
-   */
   async findByDependentId(dependentId: number): Promise<FamilyGroup | null> {
     return this.familyGroupRepository.findOne({
       where: { dependent: { id: dependentId } },
       relations: { members: true, createdBy: true, dependent: true },
     });
+  }
+
+  // ---- Búsqueda de dependiente por DNI ----
+
+  /**
+   * Busca dependientes por DNI y devuelve la info del grupo y del responsable.
+   * Si dos grupos distintos tienen dependientes con el mismo DNI (caso raro),
+   * se devuelven todos los matches. El profesional elige el correcto.
+   */
+  async getDependentByDni(dni: string) {
+    const groups = await this.familyGroupRepository
+      .createQueryBuilder('fg')
+      .leftJoinAndSelect('fg.dependent', 'dep')
+      .leftJoinAndSelect('fg.createdBy', 'admin')
+      .where('dep.dni = :dni', { dni })
+      .getMany();
+
+    return groups.map((g) => ({
+      dependentId: g.dependent.id,
+      dependentFirstName: g.dependent.firstName,
+      dependentLastName: g.dependent.lastName,
+      dependentDni: g.dependent.dni,
+      groupId: g.id,
+      groupName: g.name,
+      responsibleFirstName: g.createdBy.firstName,
+      responsibleLastName: g.createdBy.lastName,
+    }));
+  }
+
+  // ---- Gestión de solicitudes de vinculación profesional ----
+
+  async getPendingRequestsForUser(userId: number) {
+    const adminGroups = await this.familyGroupRepository.find({
+      where: { createdBy: { id: userId } },
+      relations: { dependent: true },
+    });
+
+    if (!adminGroups.length) return [];
+
+    const dependentIds = adminGroups.map((g) => g.dependent.id);
+
+    const requests = await this.patientProfessionalRepository.find({
+      where: {
+        patientType: 'dependent',
+        status: PatientProfessionalStatus.PENDING,
+        patientId: In(dependentIds),
+      },
+    });
+
+    if (!requests.length) return [];
+
+    return Promise.all(
+      requests.map(async (req) => {
+        const group = adminGroups.find((g) => g.dependent.id === req.patientId);
+        const professional = await this.professionalUserRepository.findOne({
+          where: { id: req.professionalId },
+          relations: { specialization: true },
+        });
+        return {
+          id: req.id,
+          professionalId: req.professionalId,
+          professionalFirstName: professional?.firstName ?? '',
+          professionalLastName: professional?.lastName ?? '',
+          licenseNumber: professional?.licenseNumber ?? null,
+          specialization: professional?.specialization ?? [],
+          dependentId: group?.dependent.id,
+          dependentFirstName: group?.dependent.firstName ?? '',
+          dependentLastName: group?.dependent.lastName ?? '',
+          groupId: group?.id,
+          groupName: group?.name ?? '',
+          createdAt: req.createdAt,
+        };
+      }),
+    );
+  }
+
+  async acceptProfessionalRequest(requestId: number, userId: number) {
+    const request = await this.patientProfessionalRepository.findOne({
+      where: {
+        id: requestId,
+        patientType: 'dependent',
+        status: PatientProfessionalStatus.PENDING,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Solicitud no encontrada o ya resuelta');
+    }
+
+    const group = await this.familyGroupRepository.findOne({
+      where: { dependent: { id: request.patientId } },
+      relations: { createdBy: true, dependent: true },
+    });
+
+    if (!group || group.createdBy.id !== userId) {
+      throw new ForbiddenException('No tenés permiso para resolver esta solicitud');
+    }
+
+    request.status = PatientProfessionalStatus.ACCEPTED;
+    request.resolvedAt = new Date();
+    await this.patientProfessionalRepository.save(request);
+
+    await this.notificationsService.createForProfessionalLinkAccepted({
+      patientProfessionalId: request.id,
+      professionalUserId: request.professionalId,
+      payload: {
+        dependentName: `${group.dependent.firstName} ${group.dependent.lastName}`,
+        message: `Tu solicitud de vinculación con ${group.dependent.firstName} ${group.dependent.lastName} fue aceptada.`,
+      },
+    });
+
+    return { id: request.id, status: request.status };
+  }
+
+  async rejectProfessionalRequest(requestId: number, userId: number) {
+    const request = await this.patientProfessionalRepository.findOne({
+      where: {
+        id: requestId,
+        patientType: 'dependent',
+        status: PatientProfessionalStatus.PENDING,
+      },
+    });
+
+    if (!request) {
+      throw new NotFoundException('Solicitud no encontrada o ya resuelta');
+    }
+
+    const group = await this.familyGroupRepository.findOne({
+      where: { dependent: { id: request.patientId } },
+      relations: { createdBy: true },
+    });
+
+    if (!group || group.createdBy.id !== userId) {
+      throw new ForbiddenException('No tenés permiso para resolver esta solicitud');
+    }
+
+    request.status = PatientProfessionalStatus.REJECTED;
+    request.resolvedAt = new Date();
+    await this.patientProfessionalRepository.save(request);
+
+    return { id: request.id, status: request.status };
   }
 }

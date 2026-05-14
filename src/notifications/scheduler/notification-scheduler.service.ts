@@ -60,9 +60,26 @@ export class NotificationSchedulerService {
   }
 
   private buildPayload(notification: Notification) {
-    const titleBase = notification.type === 'appointment' ? 'Turno' : 'Medicamento';
-    // payload guardado puede tener datos contextualizados
     const dep = notification.payload?.dependentName ? ` de ${notification.payload.dependentName}` : '';
+
+    if (notification.type === 'professional_link_request') {
+      const professional = notification.payload?.professionalName ?? 'Un profesional';
+      return {
+        title: `Solicitud de vinculación${dep}`,
+        body: `${professional} solicita vincularse como profesional.`,
+        data: { notificationId: String(notification.id), type: String(notification.type), referenceId: String(notification.referenceId) },
+      };
+    }
+
+    if (notification.type === 'professional_link_accepted') {
+      return {
+        title: `Vinculación aceptada${dep}`,
+        body: notification.payload?.message ?? 'Tu solicitud de vinculación fue aceptada.',
+        data: { notificationId: String(notification.id), type: String(notification.type), referenceId: String(notification.referenceId) },
+      };
+    }
+
+    const titleBase = notification.type === 'appointment' ? 'Turno' : 'Medicamento';
     const title = `${titleBase}${dep}`;
     const body = notification.payload?.description || notification.payload?.professionalName || notification.payload?.medName || 'Recordatorio';
     return {

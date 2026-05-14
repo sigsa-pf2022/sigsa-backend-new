@@ -112,4 +112,36 @@ export class NotificationsService {
       payload: params.payload,
     });
   }
+
+  async createForProfessionalLinkRequest(params: {
+    patientProfessionalId: number;
+    memberUserIds: number[];
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.patientProfessionalId,
+      type: NotificationType.PROFESSIONAL_LINK_REQUEST,
+      groupId: null,
+      scheduledFor: new Date(),
+      leadMinutes: 0,
+      memberUserIds: params.memberUserIds,
+      payload: params.payload,
+    });
+  }
+
+  async createForProfessionalLinkAccepted(params: {
+    patientProfessionalId: number;
+    professionalUserId: number;
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.patientProfessionalId,
+      type: NotificationType.PROFESSIONAL_LINK_ACCEPTED,
+      groupId: null,
+      scheduledFor: new Date(),
+      leadMinutes: 0,
+      memberUserIds: [params.professionalUserId],
+      payload: params.payload,
+    });
+  }
 }
