@@ -10,6 +10,7 @@ import { PatientProfessional } from './entities/patient-professional.entity';
 import { MailModule } from 'src/mail/mail.module';
 import { DocumentsModule } from 'src/documents/documents.module';
 import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
+import { NotificationsModule } from 'src/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
     MailModule,
     DocumentsModule,
     FamilyGroupsModule,
+    NotificationsModule,
   ],
   providers: [ProfessionalsService],
   exports: [ProfessionalsService],
