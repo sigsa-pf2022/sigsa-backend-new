@@ -34,4 +34,7 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-.envfirebase-service-account.json
+# Secrets and local-only files
+.env
+firebase-service-account.json
+test-data.md
