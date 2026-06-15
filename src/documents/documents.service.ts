@@ -71,6 +71,7 @@ export class DocumentsService {
         'fileName',
         'mimeType',
         'fileSize',
+        'fileContent', // necesario para renderizar el thumbnail de imágenes en el listado
         'documentDate',
         'date',
         'status',
@@ -97,6 +98,7 @@ export class DocumentsService {
         'fileName',
         'mimeType',
         'fileSize',
+        'fileContent', // necesario para renderizar el thumbnail de imágenes en el listado
         'documentDate',
         'date',
         'status',
@@ -226,6 +228,7 @@ export class DocumentsService {
         'fileName',
         'mimeType',
         'fileSize',
+        'fileContent', // necesario para renderizar el thumbnail de imágenes en el listado
         'documentDate',
         'date',
         'status',
