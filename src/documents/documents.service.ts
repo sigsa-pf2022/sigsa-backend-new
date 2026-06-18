@@ -71,6 +71,7 @@ export class DocumentsService {
         'fileName',
         'mimeType',
         'fileSize',
+        'fileContent', // necesario para renderizar el thumbnail de imágenes en el listado
         'documentDate',
         'date',
         'status',
@@ -97,6 +98,7 @@ export class DocumentsService {
         'fileName',
         'mimeType',
         'fileSize',
+        'fileContent', // necesario para renderizar el thumbnail de imágenes en el listado
         'documentDate',
         'date',
         'status',
@@ -169,6 +171,14 @@ export class DocumentsService {
     if (editDto.date) document.date = new Date(editDto.date);
     if (editDto.status) document.status = editDto.status;
 
+    // Reemplazo de la imagen/archivo (opcional)
+    if (editDto.fileContent) {
+      document.fileContent = editDto.fileContent;
+      if (editDto.fileName) document.fileName = editDto.fileName;
+      if (editDto.mimeType) document.mimeType = editDto.mimeType;
+      if (editDto.fileSize !== undefined) document.fileSize = editDto.fileSize;
+    }
+
     document.updatedAt = new Date();
     return this.documentRepository.save(document);
   }
@@ -226,6 +236,7 @@ export class DocumentsService {
         'fileName',
         'mimeType',
         'fileSize',
+        'fileContent', // necesario para renderizar el thumbnail de imágenes en el listado
         'documentDate',
         'date',
         'status',
