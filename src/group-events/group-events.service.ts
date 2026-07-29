@@ -249,9 +249,15 @@ export class GroupEventsService {
       skip: offset,
     });
 
+    // Los actores se repiten mucho entre entradas (son los integrantes del
+    // grupo), así que se resuelven de una sola vez. Sólo los campos que se
+    // muestran: sin esto vendría también el hash de la contraseña.
     const actorIds = [...new Set(entries.map((e) => e.actorUserId).filter(Boolean))];
     const actors = actorIds.length
-      ? await this.userRepo.find({ where: { id: In(actorIds) } })
+      ? await this.userRepo.find({
+          select: { id: true, firstName: true, lastName: true, photo: true },
+          where: { id: In(actorIds) },
+        })
       : [];
     const actorsById = new Map(actors.map((a) => [a.id, a]));
 
@@ -262,6 +268,7 @@ export class GroupEventsService {
         return {
           ...entry,
           actorName: actor ? `${actor.firstName} ${actor.lastName}`.trim() : null,
+          actorPhoto: actor?.photo ?? null,
         };
       }),
     };
