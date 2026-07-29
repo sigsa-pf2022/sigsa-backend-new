@@ -144,6 +144,7 @@ export class AppointmentsController {
             createAppointmentDto,
             creator,
             myProfessional,
+            Number(req.user.id),
           );
       } else {
         const professional: ProfessionalUser =
@@ -155,6 +156,7 @@ export class AppointmentsController {
             createAppointmentDto,
             creator,
             professional,
+            Number(req.user.id),
           );
       }
       

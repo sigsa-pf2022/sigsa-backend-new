@@ -34,4 +34,16 @@ export abstract class NotificationEvent {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+
+  /**
+   * Integrante del grupo que se hizo cargo de llevar a cabo el evento del
+   * dependiente (dar el medicamento, llevarlo al turno). Null mientras nadie
+   * lo tomó. Vive en la base para que lo hereden MedEvent, Appointment y
+   * MedicalDocument por igual.
+   */
+  @Column({ nullable: true })
+  takenChargeByUserId: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  takenChargeAt: Date | null;
 }

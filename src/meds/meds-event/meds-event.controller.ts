@@ -126,6 +126,7 @@ export class MedsEventController {
       const medEvent: MedEvent = await this.medsEventService.createMedEvent(
         dependent,
         createMedEventDto,
+        Number(req.user.id),
       );
       return { status: HttpStatus.CREATED, medEvent };
     } catch (error) {

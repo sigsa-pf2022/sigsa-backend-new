@@ -6,6 +6,8 @@ import { Dependent } from 'src/family-groups/entities/dependent.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { GroupEventsService } from 'src/group-events/group-events.service';
+import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
 import { In, Not, Raw, Repository } from 'typeorm';
 import { Meds } from '../meds/meds.entity';
 import { CreateMedEventDto } from './dto/create-med-event.dto';
@@ -20,6 +22,7 @@ export class MedsEventService {
     private medsRepository: Repository<Meds>,
     private familyGroupsService: FamilyGroupsService,
     private notificationsService: NotificationsService,
+    private groupEventsService: GroupEventsService,
   ) {}
 
   // Helper para determinar el tipo de creador
@@ -155,7 +158,16 @@ export class MedsEventService {
     });
   }
   
-  async createMedEvent(creator: User | Dependent, createMedEventDto: CreateMedEventDto) {
+  /**
+   * `actorUserId` es el usuario logueado que dispara la creación. Cuando el
+   * evento es de un dependiente no coincide con `creator`, y es el que queda
+   * registrado en el historial del grupo.
+   */
+  async createMedEvent(
+    creator: User | Dependent,
+    createMedEventDto: CreateMedEventDto,
+    actorUserId?: number,
+  ) {
     const dateObj = new Date(createMedEventDto.date);
     if (isNaN(dateObj.getTime())) {
       throw new Error('Fecha inválida');
@@ -167,11 +179,16 @@ export class MedsEventService {
       date: dateObj,
     });
     const saved = await this.medEventRepository.save(newMedEvent);
-    this.tryCreateNotificationForMedEvent(saved, creator, createMedEventDto.medId);
+    this.tryCreateNotificationForMedEvent(saved, creator, createMedEventDto.medId, actorUserId);
     return saved;
   }
 
-  private async tryCreateNotificationForMedEvent(medEvent: MedEvent, creator: User | Dependent, medId: number) {
+  private async tryCreateNotificationForMedEvent(
+    medEvent: MedEvent,
+    creator: User | Dependent,
+    medId: number,
+    actorUserId?: number,
+  ) {
     try {
       const isDependent = creator instanceof Dependent;
       let groupId: number | null = null;
@@ -204,8 +221,25 @@ export class MedsEventService {
         payload: {
           medName: med?.name || 'Medicamento',
           dependentName,
+          // El front lo necesita para volver al evento desde la push.
+          dependentId: isDependent ? creator.id : null,
         },
       });
+
+      if (groupId) {
+        await this.groupEventsService.log({
+          groupId,
+          actorUserId: actorUserId ?? null,
+          action: GroupEventAction.EVENT_CREATED,
+          targetType: GroupEventTargetType.MED_EVENT,
+          targetId: medEvent.id,
+          payload: {
+            medName: med?.name || 'Medicamento',
+            dependentName,
+            eventDate: medEvent.date,
+          },
+        });
+      }
     } catch (err) {
       console.error('Error creando notificación de medicamento:', err?.message || err);
     }
