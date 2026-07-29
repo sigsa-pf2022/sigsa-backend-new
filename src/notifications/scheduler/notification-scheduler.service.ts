@@ -7,6 +7,7 @@ import { NotificationRecipient } from '../entities/notification-recipient.entity
 import { NotificationStatus } from '../enums/notification-status.enum';
 import { NotificationRecipientStatus } from '../enums/notification-recipient-status.enum';
 import { NotificationsPushService } from '../push/notifications-push.service';
+import { titleCase } from '../utils/title-case';
 
 @Injectable()
 export class NotificationSchedulerService {
@@ -60,11 +61,13 @@ export class NotificationSchedulerService {
   }
 
   private buildPayload(notification: Notification) {
-    const dep = notification.payload?.dependentName ? ` de ${notification.payload.dependentName}` : '';
+    const dep = notification.payload?.dependentName
+      ? ` de ${titleCase(notification.payload.dependentName)}`
+      : '';
     const baseData = this.buildData(notification);
 
     if (notification.type === 'professional_link_request') {
-      const professional = notification.payload?.professionalName ?? 'Un profesional';
+      const professional = titleCase(notification.payload?.professionalName) || 'Un profesional';
       return {
         title: `Solicitud de vinculación${dep}`,
         body: `${professional} solicita vincularse como profesional.`,
@@ -81,7 +84,7 @@ export class NotificationSchedulerService {
     }
 
     if (notification.type === 'event_taken_charge') {
-      const actor = notification.payload?.actorName ?? 'Un integrante';
+      const actor = titleCase(notification.payload?.actorName) || 'Un integrante';
       const what =
         notification.payload?.originalType === 'appointment'
           ? `del turno${dep}`
@@ -95,7 +98,12 @@ export class NotificationSchedulerService {
 
     const titleBase = notification.type === 'appointment' ? 'Turno' : 'Medicamento';
     const title = `${titleBase}${dep}`;
-    const body = notification.payload?.description || notification.payload?.professionalName || notification.payload?.medName || 'Recordatorio';
+    // El nombre del medicamento se deja tal cual: lleva unidades ("400mg").
+    const body =
+      notification.payload?.description ||
+      titleCase(notification.payload?.professionalName) ||
+      notification.payload?.medName ||
+      'Recordatorio';
     return {
       title,
       body,
@@ -126,7 +134,7 @@ export class NotificationSchedulerService {
       data.dependentId = String(notification.payload.dependentId);
     }
     if (notification.payload?.dependentName) {
-      data.dependentName = String(notification.payload.dependentName);
+      data.dependentName = titleCase(notification.payload.dependentName);
     }
     return data;
   }

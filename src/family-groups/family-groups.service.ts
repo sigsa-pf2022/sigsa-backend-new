@@ -16,6 +16,7 @@ import { ProfessionalUser } from 'src/professionals/entities/professional-user.e
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { GroupEventsService } from 'src/group-events/group-events.service';
 import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
+import { titleCase } from 'src/notifications/utils/title-case';
 
 @Injectable()
 export class FamilyGroupsService {
@@ -321,7 +322,9 @@ export class FamilyGroupsService {
       professionalUserId: request.professionalId,
       payload: {
         dependentName: `${group.dependent.firstName} ${group.dependent.lastName}`,
-        message: `Tu solicitud de vinculación con ${group.dependent.firstName} ${group.dependent.lastName} fue aceptada.`,
+        message: `Tu solicitud de vinculación con ${titleCase(
+          `${group.dependent.firstName} ${group.dependent.lastName}`,
+        )} fue aceptada.`,
       },
     });
 
