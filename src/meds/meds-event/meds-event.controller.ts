@@ -64,14 +64,61 @@ export class MedsEventController {
 
       return { status: HttpStatus.CREATED, medEvent };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
-          message: 'No se pudo crear el recordatorio',
+          message: error?.message || 'No se pudo crear el recordatorio',
           status: 'error',
         },
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  /*
+   * Los endpoints de /treatments van declarados antes que @Get(':id') y
+   * @Patch(':id/...') para que el comodín no se los coma.
+   */
+
+  @Get('treatments')
+  async getTreatments(@Req() request) {
+    const user = await this.userService.getUserById(request.user.id);
+    return await this.medsEventService.getMedTreatmentsByCreator(user);
+  }
+
+  @Get('treatments/dependent/:id')
+  async getTreatmentsByDependent(@Param('id', ParseIntPipe) dependentId: number) {
+    const dependent = await this.familyGroupsService.getDependentById(dependentId);
+    if (!dependent) {
+      throw new HttpException(
+        { message: 'Dependiente no encontrado', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return await this.medsEventService.getMedTreatmentsByCreator(dependent);
+  }
+
+  @Patch('treatments/:seriesId/cancel')
+  async cancelTreatment(@Param('seriesId') seriesId: string, @Req() request) {
+    const user = await this.userService.getUserById(request.user.id);
+    const { canceled } = await this.medsEventService.cancelTreatment(seriesId, user);
+    return { status: HttpStatus.OK, canceled };
+  }
+
+  @Patch('treatments/:seriesId/dependent/:dependentId/cancel')
+  async cancelTreatmentForDependent(
+    @Param('seriesId') seriesId: string,
+    @Param('dependentId', ParseIntPipe) dependentId: number,
+  ) {
+    const dependent = await this.familyGroupsService.getDependentById(dependentId);
+    if (!dependent) {
+      throw new HttpException(
+        { message: 'Dependiente no encontrado', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const { canceled } = await this.medsEventService.cancelTreatment(seriesId, dependent);
+    return { status: HttpStatus.OK, canceled };
   }
 
   @Get(':id')
@@ -129,9 +176,10 @@ export class MedsEventController {
       );
       return { status: HttpStatus.CREATED, medEvent };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
-          message: 'No se pudo crear el recordatorio para dependiente',
+          message: error?.message || 'No se pudo crear el recordatorio para dependiente',
           status: 'error',
         },
         HttpStatus.BAD_REQUEST,

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { Notification } from './entities/notification.entity';
 import { NotificationRecipient } from './entities/notification-recipient.entity';
 import { NotificationType } from './enums/notification-type.enum';
@@ -111,6 +111,39 @@ export class NotificationsService {
       memberUserIds: params.memberUserIds,
       payload: params.payload,
     });
+  }
+
+  /**
+   * Cancela las notificaciones de eventos que ya no van a ocurrir (una toma
+   * cancelada, un tratamiento cortado). Sin esto el scheduler las seguiría
+   * despachando aunque el evento esté cancelado.
+   */
+  async cancelForReferences(type: NotificationType, referenceIds: number[]) {
+    if (!referenceIds?.length) return { canceled: 0 };
+
+    const notifications = await this.notificationRepo.find({
+      where: { type, referenceId: In(referenceIds) },
+      relations: ['recipients'],
+    });
+    if (!notifications.length) return { canceled: 0 };
+
+    const pendingRecipientIds = notifications
+      .flatMap(n => n.recipients || [])
+      .filter(r => r.status === NotificationRecipientStatus.PENDING)
+      .map(r => r.id);
+
+    if (pendingRecipientIds.length) {
+      await this.recipientRepo.update(pendingRecipientIds, {
+        status: NotificationRecipientStatus.CANCELED,
+      });
+    }
+
+    await this.notificationRepo.update(
+      { id: In(notifications.map(n => n.id)) },
+      { status: NotificationStatus.CANCELED },
+    );
+
+    return { canceled: notifications.length };
   }
 
   async createForProfessionalLinkRequest(params: {
