@@ -54,6 +54,9 @@ export class MedsEventService {
 
   getMedsEventsByDependent(dependent: Dependent) {
     return this.medEventRepository.find({
+      select: {
+        takenChargeBy: { id: true, firstName: true, lastName: true },
+      },
       where: {
         createdById: dependent.id,
         createdByType: 'dependent',
@@ -61,6 +64,8 @@ export class MedsEventService {
       },
       relations: {
         med: true,
+        // Para mostrar "X se hizo cargo" sin otra consulta.
+        takenChargeBy: true,
       },
       order: {
         date: 'DESC',

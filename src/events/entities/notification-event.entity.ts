@@ -44,6 +44,14 @@ export abstract class NotificationEvent {
   @Column({ nullable: true })
   takenChargeByUserId: number | null;
 
+  /**
+   * Misma columna que `takenChargeByUserId`, como relación, para poder traer
+   * el nombre de quien se hizo cargo sin una consulta aparte.
+   */
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'takenChargeByUserId' })
+  takenChargeBy: User | null;
+
   @Column({ type: 'timestamp', nullable: true })
   takenChargeAt: Date | null;
 }

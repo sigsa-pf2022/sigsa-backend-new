@@ -88,7 +88,40 @@ export class GroupEventsService {
     if (!notification) {
       throw new NotFoundException('Notificación no encontrada');
     }
+    return this.respond(notification, userId, action);
+  }
 
+  /**
+   * La misma acción pero entrando por el evento en vez de por la notificación:
+   * es lo que usa el botón "Me hago cargo" dentro de la app, que conoce el
+   * turno o el medicamento pero no la notificación que lo anunció.
+   */
+  async respondToEvent(
+    targetType: GroupEventTargetType,
+    targetId: number,
+    userId: number,
+    action: NotificationRecipientAction,
+  ) {
+    const type =
+      targetType === GroupEventTargetType.MED_EVENT
+        ? NotificationType.MEDICATION
+        : NotificationType.APPOINTMENT;
+
+    const notification = await this.notificationRepo.findOne({
+      where: { type, referenceId: targetId },
+      relations: ['recipients'],
+    });
+    if (!notification) {
+      throw new NotFoundException('Este evento no tiene una notificación grupal');
+    }
+    return this.respond(notification, userId, action);
+  }
+
+  private async respond(
+    notification: Notification,
+    userId: number,
+    action: NotificationRecipientAction,
+  ) {
     const recipient = (notification.recipients || []).find((r) => r.userId === userId);
     if (!recipient) {
       throw new ForbiddenException('La notificación no es tuya');
