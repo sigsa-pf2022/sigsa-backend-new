@@ -13,11 +13,14 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
+import { UpdateGroupPhotoDto } from './dto/update-group-photo.dto';
 import { FamilyGroup } from './entities/family-group.entity';
 import { FamilyGroupsService } from './family-groups.service';
 
@@ -191,6 +194,17 @@ export class FamilyGroupsController {
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  @Patch('/:groupId/photo')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateGroupPhoto(
+    @Param('groupId') groupId: string,
+    @Body() dto: UpdateGroupPhotoDto,
+    @Req() request,
+  ) {
+    const user = await this.userService.getUserById(request.user.id);
+    return this.familyGroupService.updateGroupPhoto(parseInt(groupId), dto.photo, user);
   }
 
   @Post('/:groupId/members')

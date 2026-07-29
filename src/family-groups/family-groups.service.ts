@@ -206,6 +206,30 @@ export class FamilyGroupsService {
     }
   }
 
+  /**
+   * Cambia la foto del grupo. Cualquier integrante puede hacerlo, igual que
+   * agregar miembros.
+   */
+  async updateGroupPhoto(groupId: number, photo: string | null, user: User) {
+    const group = await this.familyGroupRepository.findOne({
+      where: { id: groupId },
+      relations: { members: true, createdBy: true },
+    });
+    if (!group) {
+      throw new NotFoundException('Grupo no encontrado');
+    }
+
+    const isMember =
+      !!user &&
+      (group.createdBy?.id === user.id || (group.members || []).some((m) => m?.id === user.id));
+    if (!isMember) {
+      throw new ForbiddenException('No pertenecés a este grupo');
+    }
+
+    await this.familyGroupRepository.update({ id: groupId }, { photo });
+    return { id: groupId, photo };
+  }
+
   async getDependentById(id: number): Promise<Dependent | null> {
     return this.dependentRepository.findOne({ where: { id } });
   }

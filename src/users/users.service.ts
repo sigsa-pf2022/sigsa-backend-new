@@ -45,6 +45,9 @@ export class UsersService {
     const user = await this.userRepository.findOne({
       where: { id },
     });
+    // Puede no existir: un token sigue siendo válido después de borrar al
+    // usuario. Sin esta guarda, el `delete` de abajo tiraba un 500.
+    if (!user) return null;
     delete user.password;
     return user;
   }

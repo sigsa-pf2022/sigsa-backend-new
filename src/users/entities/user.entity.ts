@@ -48,6 +48,15 @@ export class User {
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;
 
+  /**
+   * Foto de perfil como data URI ("data:image/jpeg;base64,..."), igual que los
+   * documentos guardan su contenido en base64. El front la reescala a 256px
+   * antes de subirla: este valor viaja en el login y vive en localStorage, así
+   * que tiene que ser chico.
+   */
+  @Column({ type: 'text', nullable: true })
+  photo: string | null;
+
   @Column({
     type: 'enum',
     enum: Role,
