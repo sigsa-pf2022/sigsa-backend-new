@@ -4,6 +4,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
+import { GroupEventsService } from 'src/group-events/group-events.service';
+import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
 import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { Professionals } from 'src/professionals/entities/my-professional.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
@@ -20,6 +22,7 @@ export class AppointmentsService {
     private appointmentRepository: Repository<Appointment>,
     private readonly notificationsService: NotificationsService,
     private readonly familyGroupsService: FamilyGroupsService,
+    private readonly groupEventsService: GroupEventsService,
   ) {}
 
   // Helper para determinar el tipo de creador
@@ -37,6 +40,7 @@ export class AppointmentsService {
     appointment: CreateAppointmentDTO,
     creator: User | Dependent,
     professional: ProfessionalUser,
+    actorUserId?: number,
   ) {
     const newAppointment = this.appointmentRepository.create({
       createdById: creator.id,
@@ -46,7 +50,7 @@ export class AppointmentsService {
       professional,
     });
     return this.appointmentRepository.save(newAppointment).then(async saved => {
-      await this.tryCreateNotificationForAppointment(saved, creator);
+      await this.tryCreateNotificationForAppointment(saved, creator, actorUserId);
       return saved;
     });
   }
@@ -55,6 +59,7 @@ export class AppointmentsService {
     appointment: CreateAppointmentDTO,
     creator: User | Dependent,
     myProfessional: Professionals,
+    actorUserId?: number,
   ) {
     const newAppointment = this.appointmentRepository.create({
       createdById: creator.id,
@@ -64,7 +69,7 @@ export class AppointmentsService {
       description: appointment.description,
     });
     const saved = await this.appointmentRepository.save(newAppointment);
-    await this.tryCreateNotificationForAppointment(saved, creator);
+    await this.tryCreateNotificationForAppointment(saved, creator, actorUserId);
     return saved;
   }
 
@@ -110,6 +115,7 @@ export class AppointmentsService {
           firstName: true,
           lastName: true,
         },
+        takenChargeBy: { id: true, firstName: true, lastName: true },
       },
       where: {
         createdById: dependent.id,
@@ -119,6 +125,8 @@ export class AppointmentsService {
       relations: {
         myProfessional: true,
         professional: true,
+        // Para mostrar "X se hizo cargo" sin otra consulta.
+        takenChargeBy: true,
       },
       order: {
         date: 'DESC',
@@ -306,7 +314,11 @@ export class AppointmentsService {
    * - Si el creador es un Dependent: busca el FamilyGroup que tenga ese dependent.
    * - Si el creador es un User: crea notificación individual (sin groupId) apuntando sólo al usuario.
    */
-  private async tryCreateNotificationForAppointment(appointment: Appointment, creator: User | Dependent) {
+  private async tryCreateNotificationForAppointment(
+    appointment: Appointment,
+    creator: User | Dependent,
+    actorUserId?: number,
+  ) {
     try {
       // Determinar si es dependiente o usuario
       const isDependent = creator instanceof Dependent;
@@ -353,8 +365,25 @@ export class AppointmentsService {
           professionalName,
           description: appointment.description,
           dependentName,
+          // El front lo necesita para volver al evento desde la push.
+          dependentId: isDependent ? creator.id : null,
         }
       });
+
+      if (groupId) {
+        await this.groupEventsService.log({
+          groupId,
+          actorUserId: actorUserId ?? null,
+          action: GroupEventAction.EVENT_CREATED,
+          targetType: GroupEventTargetType.APPOINTMENT,
+          targetId: appointment.id,
+          payload: {
+            professionalName,
+            dependentName,
+            eventDate: appointment.date,
+          },
+        });
+      }
     } catch (err) {
       // Log controlado para no romper flujo de creación de turno
       console.error('Error creando notificación de turno:', err?.message || err);

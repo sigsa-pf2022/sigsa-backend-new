@@ -146,6 +146,27 @@ export class NotificationsService {
     return { canceled: notifications.length };
   }
 
+  /**
+   * Avisa al resto del grupo que un integrante se hizo cargo de un evento.
+   * Es inmediata (leadMinutes 0), igual que los avisos de vinculación.
+   */
+  async createForEventTakenCharge(params: {
+    referenceId: number;
+    groupId: number | null;
+    memberUserIds: number[];
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.referenceId,
+      type: NotificationType.EVENT_TAKEN_CHARGE,
+      groupId: params.groupId,
+      scheduledFor: new Date(),
+      leadMinutes: 0,
+      memberUserIds: params.memberUserIds,
+      payload: params.payload,
+    });
+  }
+
   async createForProfessionalLinkRequest(params: {
     patientProfessionalId: number;
     memberUserIds: number[];

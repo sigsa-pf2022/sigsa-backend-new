@@ -14,6 +14,8 @@ import { PatientProfessional } from 'src/professionals/entities/patient-professi
 import { PatientProfessionalStatus } from 'src/professionals/enums/patient-professional-status.enum';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { GroupEventsService } from 'src/group-events/group-events.service';
+import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
 
 @Injectable()
 export class FamilyGroupsService {
@@ -28,6 +30,7 @@ export class FamilyGroupsService {
     private professionalUserRepository: Repository<ProfessionalUser>,
     private readonly userService: UsersService,
     private readonly notificationsService: NotificationsService,
+    private readonly groupEventsService: GroupEventsService,
   ) {}
 
   async createGroup(
@@ -115,6 +118,16 @@ export class FamilyGroupsService {
 
     group.members.push(newMember);
     await this.familyGroupRepository.save(group);
+
+    await this.groupEventsService.log({
+      groupId: group.id,
+      actorUserId: user.id,
+      action: GroupEventAction.MEMBER_ADDED,
+      targetType: GroupEventTargetType.MEMBER,
+      targetId: newMember.id,
+      payload: { memberName: `${newMember.firstName} ${newMember.lastName}`.trim() },
+    });
+
     return true;
   }
 
@@ -156,6 +169,22 @@ export class FamilyGroupsService {
       const isAdminLeaving = group.createdBy.id === memberId;
 
       group.members = group.members.filter((member) => member.id !== memberId);
+
+      // Se registra antes de tocar el grupo: si queda vacío se borra, y con él
+      // el historial deja de tener sentido.
+      if (group.members.length > 0) {
+        await this.groupEventsService.log({
+          groupId: group.id,
+          actorUserId: user.id,
+          action: GroupEventAction.MEMBER_REMOVED,
+          targetType: GroupEventTargetType.MEMBER,
+          targetId: memberId,
+          payload: {
+            memberName: `${memberExists.firstName} ${memberExists.lastName}`.trim(),
+            selfRemoved: memberId === user.id,
+          },
+        });
+      }
 
       if (group.members.length === 0) {
         await this.familyGroupRepository.remove(group);
@@ -293,6 +322,21 @@ export class FamilyGroupsService {
       payload: {
         dependentName: `${group.dependent.firstName} ${group.dependent.lastName}`,
         message: `Tu solicitud de vinculación con ${group.dependent.firstName} ${group.dependent.lastName} fue aceptada.`,
+      },
+    });
+
+    const professional = await this.userService.getUserById(request.professionalId);
+    await this.groupEventsService.log({
+      groupId: group.id,
+      actorUserId: userId,
+      action: GroupEventAction.PROFESSIONAL_LINKED,
+      targetType: GroupEventTargetType.MEMBER,
+      targetId: request.professionalId,
+      payload: {
+        professionalName: professional
+          ? `${professional.firstName} ${professional.lastName}`.trim()
+          : 'Profesional',
+        dependentName: `${group.dependent.firstName} ${group.dependent.lastName}`.trim(),
       },
     });
 

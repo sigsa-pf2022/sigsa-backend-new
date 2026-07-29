@@ -8,6 +8,7 @@ import { UsersModule } from '../users/users.module';
 import { PatientProfessional } from '../professionals/entities/patient-professional.entity';
 import { ProfessionalUser } from '../professionals/entities/professional-user.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { GroupEventsModule } from '../group-events/group-events.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     ]),
     UsersModule,
     NotificationsModule,
+    GroupEventsModule,
   ],
   providers: [FamilyGroupsService],
   controllers: [FamilyGroupsController],

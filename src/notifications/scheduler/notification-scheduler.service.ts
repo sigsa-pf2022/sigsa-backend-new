@@ -61,13 +61,14 @@ export class NotificationSchedulerService {
 
   private buildPayload(notification: Notification) {
     const dep = notification.payload?.dependentName ? ` de ${notification.payload.dependentName}` : '';
+    const baseData = this.buildData(notification);
 
     if (notification.type === 'professional_link_request') {
       const professional = notification.payload?.professionalName ?? 'Un profesional';
       return {
         title: `Solicitud de vinculación${dep}`,
         body: `${professional} solicita vincularse como profesional.`,
-        data: { notificationId: String(notification.id), type: String(notification.type), referenceId: String(notification.referenceId) },
+        data: baseData,
       };
     }
 
@@ -75,7 +76,20 @@ export class NotificationSchedulerService {
       return {
         title: `Vinculación aceptada${dep}`,
         body: notification.payload?.message ?? 'Tu solicitud de vinculación fue aceptada.',
-        data: { notificationId: String(notification.id), type: String(notification.type), referenceId: String(notification.referenceId) },
+        data: baseData,
+      };
+    }
+
+    if (notification.type === 'event_taken_charge') {
+      const actor = notification.payload?.actorName ?? 'Un integrante';
+      const what =
+        notification.payload?.originalType === 'appointment'
+          ? `del turno${dep}`
+          : `del medicamento${dep}`;
+      return {
+        title: `${actor} se hizo cargo`,
+        body: `Se va a ocupar ${what}.`,
+        data: baseData,
       };
     }
 
@@ -85,12 +99,36 @@ export class NotificationSchedulerService {
     return {
       title,
       body,
-      data: {
-        notificationId: String(notification.id),
-        type: String(notification.type),
-        referenceId: String(notification.referenceId),
-      },
+      data: baseData,
     };
+  }
+
+  /**
+   * FCM exige que todos los valores de `data` sean strings.
+   * `actionable` le dice al front si tiene que ofrecer "Me hago cargo":
+   * sólo tiene sentido en eventos de un dependiente, es decir con grupo.
+   */
+  private buildData(notification: Notification): Record<string, string> {
+    const isGroupEvent =
+      notification.groupId != null &&
+      (notification.type === 'appointment' || notification.type === 'medication');
+
+    const data: Record<string, string> = {
+      notificationId: String(notification.id),
+      type: String(notification.type),
+      referenceId: String(notification.referenceId),
+      actionable: String(isGroupEvent),
+    };
+    if (notification.groupId != null) {
+      data.groupId = String(notification.groupId);
+    }
+    if (notification.payload?.dependentId != null) {
+      data.dependentId = String(notification.payload.dependentId);
+    }
+    if (notification.payload?.dependentName) {
+      data.dependentName = String(notification.payload.dependentName);
+    }
+    return data;
   }
 
   private async recomputeNotificationStatus(notificationId: number) {
