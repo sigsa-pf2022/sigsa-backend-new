@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   UseGuards,
   UsePipes,
@@ -18,6 +19,7 @@ import {
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { MailService } from 'src/mail/mail.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { ValidateUserDto } from './dto/validate-user.dto';
 import { UsersService } from './users.service';
 
@@ -151,6 +153,17 @@ export class UsersController {
       );
     }
     return userPerMonth;
+  }
+
+  /**
+   * "Mis datos": el usuario edita sus propios datos básicos.
+   * El id sale del token, nunca del body.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('/me')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateMe(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.updateUser(Number(req.user.id), updateUserDto);
   }
 
   @UseGuards(JwtAuthGuard)

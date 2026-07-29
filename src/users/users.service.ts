@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { hashSync } from 'bcrypt';
 import { ValidateUserDto } from './dto/validate-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { random } from './utils/random-number';
 import { User } from './entities/user.entity';
 import { NormalUser } from './entities/normal-user.entity';
@@ -46,6 +47,23 @@ export class UsersService {
     });
     delete user.password;
     return user;
+  }
+
+  /**
+   * Actualiza los datos editables del propio usuario ("Mis datos").
+   * El DTO ya limita qué campos pueden llegar: email, dni, password y role
+   * no son editables por acá.
+   */
+  async updateUser(id: number, updateUserDto: UpdateUserDto) {
+    const fields = Object.fromEntries(
+      Object.entries(updateUserDto).filter(([, value]) => value !== undefined),
+    );
+
+    if (Object.keys(fields).length) {
+      await this.userRepository.update({ id }, fields);
+    }
+
+    return this.getUserById(id);
   }
 
   async getUsers(page, quantity) {
