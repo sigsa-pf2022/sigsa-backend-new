@@ -9,7 +9,8 @@ import { NotificationsService } from 'src/notifications/notifications.service';
 import { NotificationType } from 'src/notifications/enums/notification-type.enum';
 import { GroupEventsService } from 'src/group-events/group-events.service';
 import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
-import { In, Not, Raw, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
+import { sinceStartOfToday, UPCOMING_FETCH_LIMIT } from 'src/events/utils/upcoming-window';
 import { Meds } from '../meds/meds.entity';
 import { randomUUID } from 'crypto';
 import { CreateMedEventDto, MAX_DOSES_PER_TREATMENT } from './dto/create-med-event.dto';
@@ -87,7 +88,7 @@ export class MedsEventService {
         createdById: user.id,
         createdByType: 'user',
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         med: true,
@@ -95,7 +96,7 @@ export class MedsEventService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
 
@@ -111,7 +112,7 @@ export class MedsEventService {
         createdById: dependent.id,
         createdByType: 'dependent',
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         med: true,
@@ -119,7 +120,7 @@ export class MedsEventService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
 
@@ -153,7 +154,7 @@ export class MedsEventService {
         createdById: creator.id,
         createdByType: this.getCreatorType(creator),
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         med: true,
@@ -161,7 +162,7 @@ export class MedsEventService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
   

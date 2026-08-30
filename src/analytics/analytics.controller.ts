@@ -83,4 +83,11 @@ export class AnalyticsController {
     const { from, to } = parseRange(fromStr, toStr);
     return this.analyticsService.getPatientsLinkStatus(from, to);
   }
+
+  /** Cuánto se reparte el grupo el cuidado del dependiente ("Me hago cargo"). */
+  @Get('care-coordination')
+  getCareCoordination(@Query('from') fromStr?: string, @Query('to') toStr?: string) {
+    const { from, to } = parseRange(fromStr, toStr);
+    return this.analyticsService.getCareCoordination(from, to);
+  }
 }

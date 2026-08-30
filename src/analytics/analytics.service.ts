@@ -178,6 +178,145 @@ export class AnalyticsService {
     return result;
   }
 
+  /**
+   * Corresponsabilidad: qué tanto el grupo familiar se reparte el cuidado del
+   * dependiente a través de "Me hago cargo".
+   *
+   * - `coverage`: de los eventos creados para dependientes en el período,
+   *   cuántos terminaron con alguien a cargo.
+   * - `responseMinutes`: cuánto tarda el grupo en reaccionar, medido entre que
+   *   la push salió (`deliveredAt`) y que alguien respondió (`respondedAt`).
+   * - `series`: cuántos "me hago cargo" hubo por período, separados por tipo.
+   */
+  async getCareCoordination(from: Date, to: Date) {
+    const rangeDays = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86400000));
+    const granularity: BucketGranularity =
+      rangeDays <= 31 ? 'day' : rangeDays <= 120 ? 'week' : 'month';
+    const buckets = this.buildBuckets(from, to, granularity);
+
+    const [coverage, responseMinutes, seriesMaps] = await Promise.all([
+      this.queryTakeChargeCoverage(from, to),
+      this.queryTakeChargeResponseTime(from, to),
+      this.queryTakeChargeSeries(from, to, granularity),
+    ]);
+
+    const appointments = buckets.map((b) => seriesMaps.appointment.get(b.key) ?? 0);
+    const medEvents = buckets.map((b) => seriesMaps.medEvent.get(b.key) ?? 0);
+
+    return {
+      coverage,
+      responseMinutes,
+      byType: {
+        appointment: appointments.reduce((a, b) => a + b, 0),
+        medEvent: medEvents.reduce((a, b) => a + b, 0),
+      },
+      series: {
+        granularity,
+        labels: buckets.map((b) => b.label),
+        appointments,
+        medEvents,
+      },
+    };
+  }
+
+  /** Eventos de dependientes del período y cuántos tienen dueño. */
+  private async queryTakeChargeCoverage(from: Date, to: Date) {
+    const apptT = this.apptRepo.metadata.tableName;
+    const medT = this.mevRepo.metadata.tableName;
+    // `createdByType` es un enum propio por tabla: casteamos a texto antes de
+    // unir, igual que en countDistinctActiveCreators.
+    const rows: { total: string; taken: string }[] = await this.dataSource.query(
+      `SELECT COUNT(*) AS total,
+              COUNT("takenChargeByUserId") AS taken
+         FROM (
+           SELECT "takenChargeByUserId" FROM "${apptT}"
+             WHERE "createdByType"::text = 'dependent'
+               AND "createdAt" BETWEEN $1 AND $2
+           UNION ALL
+           SELECT "takenChargeByUserId" FROM "${medT}"
+             WHERE "createdByType"::text = 'dependent'
+               AND "createdAt" BETWEEN $1 AND $2
+         ) AS e`,
+      [from.toISOString(), to.toISOString()],
+    );
+
+    const total = parseInt(rows[0]?.total ?? '0', 10);
+    const takenCharge = parseInt(rows[0]?.taken ?? '0', 10);
+    return {
+      totalDependentEvents: total,
+      takenCharge,
+      rate: total ? +((takenCharge / total) * 100).toFixed(1) : 0,
+    };
+  }
+
+  /**
+   * Mediana y p90 del tiempo de reacción, en minutos.
+   *
+   * El cron de push corre cada minuto y sella `deliveredAt` de una sola vez
+   * para todos los destinatarios de la notificación, así que la resolución real
+   * es de ~1 minuto: no tiene sentido reportar esto en segundos.
+   *
+   * Dejamos afuera las respuestas de más de un día: alguien que abre una
+   * notificación de la semana pasada y recién ahí se hace cargo no es "tiempo
+   * de reacción", y un solo caso así corre el p90 varios días.
+   */
+  private async queryTakeChargeResponseTime(from: Date, to: Date) {
+    const rows: { median: string; p90: string; n: string }[] =
+      await this.dataSource.query(
+        `SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY minutes) AS median,
+                PERCENTILE_CONT(0.9) WITHIN GROUP (ORDER BY minutes) AS p90,
+                COUNT(*) AS n
+           FROM (
+             SELECT EXTRACT(EPOCH FROM ("respondedAt" - "deliveredAt")) / 60 AS minutes
+               FROM "notification_recipients"
+              WHERE "action"::text = 'take_charge'
+                AND "deliveredAt" IS NOT NULL
+                AND "respondedAt" IS NOT NULL
+                AND "respondedAt" >= "deliveredAt"
+                AND "respondedAt" <= "deliveredAt" + INTERVAL '1 day'
+                AND "respondedAt" BETWEEN $1 AND $2
+           ) AS r`,
+        [from.toISOString(), to.toISOString()],
+      );
+
+    const sampleSize = parseInt(rows[0]?.n ?? '0', 10);
+    const round = (v?: string) =>
+      v === null || v === undefined ? null : +parseFloat(v).toFixed(1);
+    return {
+      median: sampleSize ? round(rows[0]?.median) : null,
+      p90: sampleSize ? round(rows[0]?.p90) : null,
+      sampleSize,
+    };
+  }
+
+  /** Serie de "me hago cargo" por período, separada por tipo de evento. */
+  private async queryTakeChargeSeries(
+    from: Date,
+    to: Date,
+    g: BucketGranularity,
+  ): Promise<{ appointment: Map<string, number>; medEvent: Map<string, number> }> {
+    const format = g === 'month' ? 'YYYY-MM' : 'YYYY-MM-DD';
+    const rows: { bucket: string; target: string; c: string }[] =
+      await this.dataSource.query(
+        `SELECT TO_CHAR(DATE_TRUNC('${g}', "createdAt"), '${format}') AS bucket,
+                "targetType"::text AS target,
+                COUNT(*) AS c
+           FROM "group_event_log"
+          WHERE "action"::text = 'event_taken_charge'
+            AND "createdAt" BETWEEN $1 AND $2
+          GROUP BY 1, 2`,
+        [from.toISOString(), to.toISOString()],
+      );
+
+    const appointment = new Map<string, number>();
+    const medEvent = new Map<string, number>();
+    for (const r of rows) {
+      const target = r.target === 'appointment' ? appointment : r.target === 'med_event' ? medEvent : null;
+      if (target) target.set(r.bucket, parseInt(r.c, 10));
+    }
+    return { appointment, medEvent };
+  }
+
   private async countDistinctActiveCreators(
     creatorType: 'user' | 'dependent',
     from: Date,

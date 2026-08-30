@@ -11,7 +11,8 @@ import { Professionals } from 'src/professionals/entities/my-professional.entity
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Dependent } from 'src/family-groups/entities/dependent.entity';
-import { In, Not, Raw, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
+import { sinceStartOfToday, UPCOMING_FETCH_LIMIT } from 'src/events/utils/upcoming-window';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 
@@ -152,7 +153,7 @@ export class AppointmentsService {
         createdById: user.id,
         createdByType: 'user',
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         myProfessional: true,
@@ -161,7 +162,7 @@ export class AppointmentsService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
 
@@ -183,7 +184,7 @@ export class AppointmentsService {
         createdById: dependent.id,
         createdByType: 'dependent',
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         myProfessional: true,
@@ -192,7 +193,7 @@ export class AppointmentsService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
 

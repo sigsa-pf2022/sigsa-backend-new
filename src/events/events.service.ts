@@ -111,7 +111,13 @@ export class EventsService {
   }
 
   /**
-   * Combine and sort events by date
+   * Combina turnos y medicamentos poniendo primero lo que todavía no pasó.
+   *
+   * La ventana arranca a las 00:00 de hoy, así que la lista puede traer eventos
+   * de esta mañana ya vencidos. Si ordenáramos por fecha a secas, tres tomas
+   * pasadas se comerían las tres tarjetas del carrusel y el usuario no vería lo
+   * que se viene. Entonces: primero lo pendiente de más cerca a más lejos, y
+   * después lo de hoy que ya pasó, de más reciente a más viejo.
    */
   private _combineAndSortEvents(
     medEvents: Event[],
@@ -125,7 +131,18 @@ export class EventsService {
       .filter(e => e && e.date)
       .map(normalize)
       .filter(e => !isNaN(e.date.getTime()));
-    return allEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const now = Date.now();
+    const isUpcoming = (e: Event) => e.date.getTime() >= now;
+
+    return allEvents.sort((a, b) => {
+      if (isUpcoming(a) !== isUpcoming(b)) {
+        return isUpcoming(a) ? -1 : 1;
+      }
+      return isUpcoming(a)
+        ? a.date.getTime() - b.date.getTime()
+        : b.date.getTime() - a.date.getTime();
+    });
   }
 
   /**
