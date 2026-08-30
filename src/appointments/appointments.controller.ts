@@ -82,12 +82,18 @@ export class AppointmentsController {
   async getAppointment(@Param('id', ParseIntPipe) id: number) {
     const appointment = await this.appoinmentsService.getAppointmentById(id);
     return {
+      // El id lo necesita la vista para "Me hago cargo"; el estado, para el badge.
+      id: appointment.id,
       professional: appointment.myProfessional
         ? appointment.myProfessional
         : appointment.professional,
       isMyProfessional: appointment.myProfessional ? true : false,
       date: appointment.date,
       description: appointment.description,
+      status: appointment.status,
+      takenChargeByUserId: appointment.takenChargeByUserId,
+      takenChargeBy: appointment.takenChargeBy,
+      takenChargeAt: appointment.takenChargeAt,
     };
   }
 

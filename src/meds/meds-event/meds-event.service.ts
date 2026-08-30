@@ -429,8 +429,10 @@ export class MedsEventService {
 
   getMedEventById(id: number) {
     return this.medEventRepository.findOne({
+      // Sin el select acotado la relación arrastraría el hash de la contraseña.
+      select: { takenChargeBy: { id: true, firstName: true, lastName: true } },
       where: { id },
-      relations: { med: true },
+      relations: { med: true, takenChargeBy: true },
     });
   }
 }

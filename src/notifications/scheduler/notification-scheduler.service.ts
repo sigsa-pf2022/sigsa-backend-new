@@ -136,6 +136,12 @@ export class NotificationSchedulerService {
     if (notification.payload?.dependentName) {
       data.dependentName = titleCase(notification.payload.dependentName);
     }
+    // El aviso de "alguien se hizo cargo" apunta al turno o medicamento
+    // original, pero su propio `type` es event_taken_charge. Sin esto el front
+    // no sabe a qué vista abrir cuando se toca la notificación.
+    if (notification.payload?.originalType) {
+      data.originalType = String(notification.payload.originalType);
+    }
     return data;
   }
 

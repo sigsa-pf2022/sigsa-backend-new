@@ -239,9 +239,15 @@ export class AppointmentsService {
           firstName: true,
           lastName: true,
         },
+        takenChargeBy: { id: true, firstName: true, lastName: true },
       },
       where: { id },
-      relations: { myProfessional: true, professional: true },
+      relations: {
+        myProfessional: true,
+        professional: true,
+        // Para mostrar "X se hizo cargo" sin otra consulta.
+        takenChargeBy: true,
+      },
     });
   }
 
