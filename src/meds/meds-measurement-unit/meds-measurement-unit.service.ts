@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { boolFilter, buildWhere, paginate, textFilter } from 'src/common/list-query';
 import { CreateMedsMeasurementUnitDto } from './dto/create-meds-measurement-unit.dto';
 import { MedsMeasurementUnit } from './meds-measurement-unit.entity';
 
@@ -16,10 +17,13 @@ export class MedsMeasurementUnitService {
       order: { name: 'ASC' },
     });
   }
-  async getMeasurementUnits(page, quantity) {
+  async getMeasurementUnits(page, quantity, deleted?: unknown, name?: string) {
     return this.medsMeasurementUnitRepository.findAndCount({
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        deleted: boolFilter(deleted),
+        name: textFilter(name),
+      }),
+      ...paginate(page, quantity),
       order: { name: 'ASC' },
     });
   }

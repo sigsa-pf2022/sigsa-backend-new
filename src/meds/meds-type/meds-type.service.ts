@@ -1,6 +1,7 @@
 import { Get, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Like, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
+import { boolFilter, buildWhere, paginate, textFilter } from 'src/common/list-query';
 import { CreateMedsTypeDto } from './dto/create-meds-type.dto';
 import { MedsType } from './meds-type.entity';
 
@@ -19,18 +20,17 @@ export class MedsTypeService {
   async getTypes(
     page: number,
     quantity: number,
-    deleted: boolean,
-    name: string,
-    description: string,
+    deleted: unknown,
+    name?: string,
+    description?: string,
   ) {
     return this.medsTypeRepository.findAndCount({
-      where: {
-        deleted: deleted,
-        name: Like(`%${name}%`),
-        description: Like(`%${description}%`),
-      },
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        deleted: boolFilter(deleted),
+        name: textFilter(name),
+        description: textFilter(description),
+      }),
+      ...paginate(page, quantity),
       order: { name: 'ASC' },
     });
   }

@@ -14,8 +14,10 @@ export class MedsShapeController {
     const res = await this.medsShapeService.getShapes(
       request.query.page,
       request.query.take,
+      request.query.deleted,
+      request.query.name,
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], count: res[1], total: res[1] };
   }
 
     // @UseGuards(RoleGuard(Role.Admin))

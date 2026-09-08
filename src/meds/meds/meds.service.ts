@@ -1,9 +1,26 @@
 import { ConflictException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import {
+  boolFilter,
+  buildWhere,
+  paginate,
+  relationFilter,
+  textFilter,
+} from 'src/common/list-query';
 import { CreateMedsDto } from './dto/create-meds.dto';
 import { UpdateMedsDto } from './dto/update-meds.dto';
 import { Meds } from './meds.entity';
+
+/** Filtros del listado del backoffice; todos opcionales y todos como string. */
+export interface MedsFilters {
+  name?: string;
+  drug?: unknown;
+  type?: unknown;
+  shape?: unknown;
+  measurementUnit?: unknown;
+  deleted?: unknown;
+}
 
 @Injectable()
 export class MedsService {
@@ -18,10 +35,17 @@ export class MedsService {
     });
   }
   
-  async getMeds(page, quantity) {
+  async getMeds(page, quantity, filters: MedsFilters = {}) {
     return this.medsRepository.findAndCount({
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        deleted: boolFilter(filters.deleted),
+        name: textFilter(filters.name),
+        drug: relationFilter(filters.drug),
+        type: relationFilter(filters.type),
+        shape: relationFilter(filters.shape),
+        measurementUnit: relationFilter(filters.measurementUnit),
+      }),
+      ...paginate(page, quantity),
       order: { name: 'ASC' },
       relations: {
         shape: true,

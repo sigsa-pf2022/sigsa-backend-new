@@ -3,7 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { hashSync } from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { random } from 'src/users/utils/random-number';
-import { Like, Not, Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
+import {
+  boolFilter,
+  buildWhere,
+  paginate,
+  textFilter,
+} from 'src/common/list-query';
 import { CreateMyProfessionalDto } from './dto/create-my-professional.dto';
 import { CreateProfessionalSpecializationDto } from './dto/create-professional-specialization.dto';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
@@ -76,16 +82,15 @@ export class ProfessionalsService {
   async getProfessionalsDashboard(
     page: number,
     quantity: number,
-    firstName: string,
-    lastName: string,
+    firstName?: string,
+    lastName?: string,
   ) {
     return this.professionalUserRepository.findAndCount({
-      where: {
-        firstName: Like(`%${firstName}%`),
-        lastName: Like(`%${lastName}%`),
-      },
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        firstName: textFilter(firstName),
+        lastName: textFilter(lastName),
+      }),
+      ...paginate(page, quantity),
       order: { firstName: 'ASC' },
     });
   }
@@ -93,18 +98,17 @@ export class ProfessionalsService {
   async getProfessionalsSpecializations(
     page: number,
     quantity: number,
-    deleted: boolean,
-    name: string,
-    description: string,
+    deleted: unknown,
+    name?: string,
+    description?: string,
   ) {
     return this.professionalSpecializationsRepository.findAndCount({
-      where: {
-        deleted: deleted,
-        name: Like(`%${name}%`),
-        description: Like(`%${description}%`),
-      },
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        deleted: boolFilter(deleted),
+        name: textFilter(name),
+        description: textFilter(description),
+      }),
+      ...paginate(page, quantity),
       order: { name: 'ASC' },
     });
   }

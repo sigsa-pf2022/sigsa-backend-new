@@ -18,7 +18,7 @@ export class MedsTypeController {
       request.query.name,
       request.query.description,
     );
-    return { data: res[0], total: res[1], count: res[0].length };
+    return { data: res[0], total: res[1], count: res[1] };
   }
 
     // @UseGuards(RoleGuard(Role.Admin))

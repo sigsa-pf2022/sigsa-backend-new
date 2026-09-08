@@ -28,8 +28,16 @@ export class MedsController {
     const res = await this.medsService.getMeds(
       request.query.page,
       request.query.take,
+      {
+        name: request.query.name,
+        drug: request.query.drug,
+        type: request.query.type,
+        shape: request.query.shape,
+        measurementUnit: request.query.measurementUnit,
+        deleted: request.query.deleted,
+      },
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], count: res[1], total: res[1] };
   }
   // @UseGuards(RoleGuard(Role.Admin))
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))

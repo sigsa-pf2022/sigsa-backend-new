@@ -26,8 +26,10 @@ export class MedsDrugController {
     const res = await this.medsDrugService.getDrugs(
       request.query.page,
       request.query.take,
+      request.query.deleted,
+      request.query.name,
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], count: res[1], total: res[1] };
   }
 
   // @UseGuards(RoleGuard(Role.Admin))

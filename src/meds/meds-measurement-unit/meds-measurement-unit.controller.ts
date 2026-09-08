@@ -28,8 +28,10 @@ export class MedsMeasurementUnitController {
     const res = await this.medsMeasurementUnitService.getMeasurementUnits(
       request.query.page,
       request.query.take,
+      request.query.deleted,
+      request.query.name,
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], count: res[1], total: res[1] };
   }
 
   // @UseGuards(RoleGuard(Role.Admin))

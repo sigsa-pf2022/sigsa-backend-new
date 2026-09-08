@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { buildWhere, paginate, textFilter } from 'src/common/list-query';
 import { CreateUserDto } from './dto/create-user.dto';
 import { hashSync } from 'bcrypt';
 import { ValidateUserDto } from './dto/validate-user.dto';
@@ -69,17 +70,20 @@ export class UsersService {
     return this.getUserById(id);
   }
 
-  async getUsers(page, quantity) {
+  async getUsers(page, quantity, firstName?: string, lastName?: string) {
     return this.normalUserRepository.findAndCount({
-      select:{
+      select: {
         id: true,
         firstName: true,
         lastName: true,
         email: true,
         createdAt: true,
       },
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        firstName: textFilter(firstName),
+        lastName: textFilter(lastName),
+      }),
+      ...paginate(page, quantity),
       order: { firstName: 'ASC' },
     });
   }
