@@ -102,7 +102,9 @@ export class UsersController {
         HttpStatus.BAD_REQUEST,
       );
     } else {
-      this.userService.updateValidateStatus(user.id);
+      // Con await: si respondemos antes de persistir la verificación, un login
+      // inmediato encuentra el usuario todavía sin verificar y lo rebota.
+      await this.userService.updateValidateStatus(user.id);
       return { status: HttpStatus.OK, message: 'Codigo correcto' };
     }
   }

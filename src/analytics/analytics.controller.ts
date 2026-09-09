@@ -4,6 +4,23 @@ import { AnalyticsService } from './analytics.service';
 const MAX_RANGE_DAYS = 730;
 const DEFAULT_RANGE_DAYS = 30;
 
+/**
+ * Interpreta un "YYYY-MM-DD" en hora local.
+ *
+ * `new Date('2026-09-08')` lo parsea como medianoche UTC, y el `setHours` que
+ * venía después se aplica en hora local: en UTC-3 el rango terminaba el 7 a las
+ * 23:59, así que el día que el usuario elegía como tope quedaba afuera y lo que
+ * pasaba hoy no aparecía en los gráficos.
+ */
+function parseYmdLocal(value: string, endOfDay: boolean): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return endOfDay
+    ? new Date(year, month - 1, day, 23, 59, 59, 999)
+    : new Date(year, month - 1, day, 0, 0, 0, 0);
+}
+
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
 function parseRange(fromStr?: string, toStr?: string): { from: Date; to: Date } {
   const now = new Date();
   // Default: last 30 days, inclusive end-of-day today.
@@ -11,24 +28,18 @@ function parseRange(fromStr?: string, toStr?: string): { from: Date; to: Date } 
   let from = new Date(now.getTime() - DEFAULT_RANGE_DAYS * 86400000);
 
   if (toStr) {
-    const parsed = new Date(toStr);
+    // Las fechas sin hora se toman como fin del día local, inclusive.
+    const parsed = DATE_ONLY.test(toStr) ? parseYmdLocal(toStr, true) : new Date(toStr);
     if (Number.isNaN(parsed.getTime())) {
       throw new BadRequestException('Invalid "to" date');
-    }
-    // Treat date-only strings (YYYY-MM-DD) as end-of-day inclusive.
-    if (/^\d{4}-\d{2}-\d{2}$/.test(toStr)) {
-      parsed.setHours(23, 59, 59, 999);
     }
     to = parsed;
   }
 
   if (fromStr) {
-    const parsed = new Date(fromStr);
+    const parsed = DATE_ONLY.test(fromStr) ? parseYmdLocal(fromStr, false) : new Date(fromStr);
     if (Number.isNaN(parsed.getTime())) {
       throw new BadRequestException('Invalid "from" date');
-    }
-    if (/^\d{4}-\d{2}-\d{2}$/.test(fromStr)) {
-      parsed.setHours(0, 0, 0, 0);
     }
     from = parsed;
   }
