@@ -300,7 +300,7 @@ export class MedsEventService {
    * Cancela las tomas futuras de un tratamiento. Las pasadas se conservan
    * como historial.
    */
-  async cancelTreatment(seriesId: string, creator: User | Dependent) {
+  async cancelTreatment(seriesId: string, creator: User | Dependent, actorUserId?: number) {
     const doses = await this.medEventRepository.find({
       where: {
         seriesId,
@@ -320,6 +320,20 @@ export class MedsEventService {
       { status: EventStatus.CANCELED, updatedAt: new Date() },
     );
     await this.cancelNotificationsFor(ids);
+
+    // Un tratamiento se registra una sola vez, igual que al crearlo: 9 tomas
+    // canceladas no son 9 entradas de historial.
+    const [first] = upcoming;
+    if (first) {
+      const withMed = await this.medEventRepository.findOne({
+        where: { id: first.id },
+        relations: { med: true },
+      });
+      await this.logCancellation(first, withMed?.med?.name, actorUserId, {
+        treatment: true,
+        canceledDoses: upcoming.length,
+      });
+    }
 
     return { canceled: upcoming.length };
   }
@@ -412,13 +426,61 @@ export class MedsEventService {
     });
   }
 
-  async cancelMedEvent(id: number) {
+  async cancelMedEvent(id: number, actorUserId?: number) {
+    const medEvent = await this.medEventRepository.findOne({
+      where: { id },
+      relations: { med: true },
+    });
+
     const result = await this.medEventRepository.update(id, {
       status: EventStatus.CANCELED,
       updatedAt: new Date(),
     });
     await this.cancelNotificationsFor([id]);
+
+    if (medEvent) {
+      await this.logCancellation(medEvent, medEvent.med?.name, actorUserId);
+    }
     return result;
+  }
+
+  /**
+   * Deja constancia en el historial de quién canceló.
+   *
+   * Un recordatorio cancelado desaparece de los listados (todas las consultas
+   * filtran por `Not(CANCELED)`), así que sin esta entrada no quedaba ningún
+   * rastro de que alguien del grupo lo dio de baja.
+   */
+  private async logCancellation(
+    medEvent: MedEvent,
+    medName?: string,
+    actorUserId?: number,
+    extra?: Record<string, any>,
+  ) {
+    try {
+      if (medEvent.createdByType !== 'dependent' || !medEvent.createdById) return;
+
+      const group = await this.familyGroupsService.findByDependentId(medEvent.createdById);
+      if (!group) return;
+
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId: actorUserId ?? null,
+        action: GroupEventAction.EVENT_CANCELED,
+        targetType: GroupEventTargetType.MED_EVENT,
+        targetId: medEvent.id,
+        payload: {
+          medName: medName || 'Medicamento',
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: medEvent.date,
+          ...(extra || {}),
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando la cancelación del medicamento:', err?.message || err);
+    }
   }
 
   async confirmMedEvent(id: number) {

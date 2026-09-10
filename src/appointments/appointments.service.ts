@@ -3,6 +3,7 @@ import { subDays } from 'date-fns';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { NotificationType } from 'src/notifications/enums/notification-type.enum';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
 import { GroupEventsService } from 'src/group-events/group-events.service';
 import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
@@ -252,14 +253,82 @@ export class AppointmentsService {
     });
   }
 
-  cancelAppointment(id: number) {
-    return this.appointmentRepository.update(
+  /**
+   * Cancela un turno y deja constancia de quién lo hizo.
+   *
+   * `actorUserId` viene del token; si falta es porque canceló el cron de turnos
+   * vencidos, y entonces el historial lo muestra como vencimiento y no como una
+   * decisión de alguien del grupo.
+   */
+  async cancelAppointment(id: number, actorUserId?: number, automatic = false) {
+    const appointment = await this.appointmentRepository.findOne({
+      where: { id },
+      relations: { professional: true, myProfessional: true },
+    });
+
+    const result = await this.appointmentRepository.update(
       { id },
       {
         status: EventStatus.CANCELED,
         updatedAt: new Date(),
       },
     );
+
+    if (appointment) {
+      // Sin esto el scheduler seguía despachando el recordatorio de un turno
+      // que ya no existe: sonaba el push de algo cancelado.
+      await this.cancelNotificationsFor([id]);
+      await this.logCancellation(appointment, actorUserId, automatic);
+    }
+
+    return result;
+  }
+
+  private async cancelNotificationsFor(appointmentIds: number[]) {
+    try {
+      await this.notificationsService.cancelForReferences(
+        NotificationType.APPOINTMENT,
+        appointmentIds,
+      );
+    } catch (err) {
+      console.error('Error cancelando notificaciones de turno:', err?.message || err);
+    }
+  }
+
+  /** Registra la cancelación en el historial del grupo del dependiente. */
+  private async logCancellation(
+    appointment: Appointment,
+    actorUserId?: number,
+    automatic = false,
+  ) {
+    try {
+      if (appointment.createdByType !== 'dependent' || !appointment.createdById) return;
+
+      const group = await this.familyGroupsService.findByDependentId(appointment.createdById);
+      if (!group) return;
+
+      const professional = appointment.myProfessional || appointment.professional;
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId: actorUserId ?? null,
+        action: GroupEventAction.EVENT_CANCELED,
+        targetType: GroupEventTargetType.APPOINTMENT,
+        targetId: appointment.id,
+        payload: {
+          professionalName: professional
+            ? `${professional.firstName || ''} ${professional.lastName || ''}`.trim()
+            : null,
+          description: appointment.description,
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: appointment.date,
+          automatic,
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando la cancelación del turno:', err?.message || err);
+    }
   }
 
   confirmAppointment(id: number) {
@@ -306,12 +375,10 @@ export class AppointmentsService {
         date: LessThan(oneDayAgo),
       },
     });
-    if (appointmentsToCancel.length) {
-      for (const appt of appointmentsToCancel) {
-        appt.status = EventStatus.CANCELED;
-        appt.updatedAt = new Date();
-      }
-      await this.appointmentRepository.save(appointmentsToCancel);
+    // Se cancelan de a uno para que cada turno deje su entrada en el historial
+    // del grupo: si no, un turno desaparecía de la lista sin ningún rastro.
+    for (const appt of appointmentsToCancel) {
+      await this.cancelAppointment(appt.id, undefined, true);
     }
     return appointmentsToCancel.length;
   }

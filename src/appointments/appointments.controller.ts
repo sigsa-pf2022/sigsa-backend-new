@@ -99,7 +99,11 @@ export class AppointmentsController {
 
   @Delete('/cancel/:id')
   cancelAppointment(@Request() req) {
-    return this.appoinmentsService.cancelAppointment(req.params.id);
+    // El id del que cancela va al historial del grupo.
+    return this.appoinmentsService.cancelAppointment(
+      Number(req.params.id),
+      Number(req.user.id),
+    );
   }
 
   @Put('/confirm/:id')

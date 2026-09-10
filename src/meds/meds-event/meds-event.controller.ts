@@ -101,7 +101,11 @@ export class MedsEventController {
   @Patch('treatments/:seriesId/cancel')
   async cancelTreatment(@Param('seriesId') seriesId: string, @Req() request) {
     const user = await this.userService.getUserById(request.user.id);
-    const { canceled } = await this.medsEventService.cancelTreatment(seriesId, user);
+    const { canceled } = await this.medsEventService.cancelTreatment(
+      seriesId,
+      user,
+      Number(request.user.id),
+    );
     return { status: HttpStatus.OK, canceled };
   }
 
@@ -109,6 +113,7 @@ export class MedsEventController {
   async cancelTreatmentForDependent(
     @Param('seriesId') seriesId: string,
     @Param('dependentId', ParseIntPipe) dependentId: number,
+    @Req() request,
   ) {
     const dependent = await this.familyGroupsService.getDependentById(dependentId);
     if (!dependent) {
@@ -117,7 +122,11 @@ export class MedsEventController {
         HttpStatus.NOT_FOUND,
       );
     }
-    const { canceled } = await this.medsEventService.cancelTreatment(seriesId, dependent);
+    const { canceled } = await this.medsEventService.cancelTreatment(
+      seriesId,
+      dependent,
+      Number(request.user.id),
+    );
     return { status: HttpStatus.OK, canceled };
   }
 
@@ -144,8 +153,9 @@ export class MedsEventController {
   }
 
   @Patch(':id/cancel')
-  async cancelMedEvent(@Param('id', ParseIntPipe) id: number) {
-    await this.medsEventService.cancelMedEvent(id);
+  async cancelMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    // El id del que cancela va al historial del grupo.
+    await this.medsEventService.cancelMedEvent(id, Number(request.user.id));
     return { status: HttpStatus.OK };
   }
 
