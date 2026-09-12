@@ -1,5 +1,7 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 
 const MAX_RANGE_DAYS = 730;
 const DEFAULT_RANGE_DAYS = 30;
@@ -55,6 +57,11 @@ function parseRange(fromStr?: string, toStr?: string): { from: Date; to: Date } 
   return { from, to };
 }
 
+/**
+ * Métricas del backoffice. Todo el controlador es de uso administrativo:
+ * la app móvil no consume ninguna de estas rutas.
+ */
+@UseGuards(RoleGuard([Role.Admin]))
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}

@@ -1,19 +1,11 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  HttpException,
-  HttpStatus,
-  Post,
-  Put,
-  Req,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpException, HttpStatus, Post, Put, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { CreateMedsMeasurementUnitDto } from './dto/create-meds-measurement-unit.dto';
 import { MedsMeasurementUnitService } from './meds-measurement-unit.service';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 
+/** Panel de administración: sólo lo consume el backoffice. */
+@UseGuards(RoleGuard([Role.Admin]))
 @Controller('meds-measurement-unit')
 export class MedsMeasurementUnitController {
   constructor(

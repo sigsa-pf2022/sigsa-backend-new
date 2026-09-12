@@ -22,6 +22,8 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ValidateUserDto } from './dto/validate-user.dto';
 import { UsersService } from './users.service';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 
 @Controller('users')
 export class UsersController {
@@ -115,6 +117,7 @@ export class UsersController {
     return this.userService.getUserById(Number(req.user.id));
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('all')
   async getUsers(@Request() request) {
     const res = await this.userService.getUsers(
@@ -142,6 +145,7 @@ export class UsersController {
     return user.emailVerified;
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/monthly-quantity')
   async getMonthlyUserQuantity() {
     const today = new Date();

@@ -83,6 +83,16 @@ export class NotificationSchedulerService {
       };
     }
 
+    if (notification.type === 'professional_linked') {
+      const professional = titleCase(notification.payload?.professionalName) || 'Un profesional';
+      return {
+        title: 'Nuevo profesional vinculado',
+        // Se dice explícitamente qué acceso implica: es el dato que importa.
+        body: `${professional} te agregó como paciente y puede ver tus documentos.`,
+        data: baseData,
+      };
+    }
+
     if (notification.type === 'event_taken_charge') {
       const actor = titleCase(notification.payload?.actorName) || 'Un integrante';
       const what =

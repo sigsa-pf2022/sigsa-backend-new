@@ -101,6 +101,7 @@ export class ProfessionalsController {
   async getProfessionals(@Req() request) {
     return await this.professionalsService.getProfessionals(request.user.id);
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('dashboard')
   async getProfessionalsDashboard(@Req() request) {
     console.log('profesionales');
@@ -112,6 +113,7 @@ export class ProfessionalsController {
     );
     return { data: res[0], total: res[1], count: res[0].length };
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('specializations')
   async getProfessionalsSpecializations(@Req() request) {
     const res = await this.professionalsService.getProfessionalsSpecializations(
@@ -127,6 +129,7 @@ export class ProfessionalsController {
   async getAllProfessionalsSpecializations() {
     return await this.professionalsService.getAllProfessionalsSpecializations();
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/specializations/:id')
   async getProfessionalsSpecializationById(@Req() request) {
     return await this.professionalsService.getProfessionalsSpecializationById(
@@ -137,6 +140,7 @@ export class ProfessionalsController {
   // From Dashboard
   // @UseGuards(RoleGuard(Role.Admin))
   @UsePipes(ValidationPipe)
+  @UseGuards(RoleGuard([Role.Admin]))
   @Post('/specializations')
   async createSpecialization(
     @Req() request,
@@ -161,6 +165,7 @@ export class ProfessionalsController {
     );
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Put('/specializations/:id')
   async updateSpecialization(@Req() request, @Body() body) {
     return this.professionalsService.updateSpecialization(
@@ -169,6 +174,7 @@ export class ProfessionalsController {
     );
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Put('/specializations/recover/:id')
   async recoverSpecialization(@Req() request) {
     return this.professionalsService.toggleStatusSpecialization(
@@ -177,6 +183,7 @@ export class ProfessionalsController {
     );
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Delete('/specializations/:id')
   async deleteSpecialization(@Req() request) {
     return this.professionalsService.toggleStatusSpecialization(
@@ -257,6 +264,7 @@ export class ProfessionalsController {
     }
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/monthly-quantity')
   async getMonthlyUserQuantity() {
     const today = new Date();

@@ -58,7 +58,7 @@ type Ctx = { qr: QueryRunner; rng: Rng; demoStart: Date };
 async function createUser(
   ctx: Ctx,
   o: { firstName: string; lastName: string; dni: string; email: string; gender: string;
-       birthday: string; role: 'user' | 'professional'; createdAt: Date;
+       birthday: string; role: 'user' | 'professional' | 'admin'; createdAt: Date;
        licenseNumber?: number; photo?: string },
 ) {
   return insert(ctx.qr, 'user', {
@@ -294,6 +294,17 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
   const { rng } = ctx;
   const summary: Record<string, number> = {};
   const bump = (k: string, n = 1) => (summary[k] = (summary[k] ?? 0) + n);
+
+  // ── Administración ──────────────────────────────────────────────────────
+  // Cuenta del backoffice. Va separada de las de la app porque `role` admite
+  // un solo valor: un mismo usuario no puede ser admin y paciente a la vez.
+  // Se crea acá y no con la API porque `POST /users/create` fuerza rol `user`.
+  await createUser(ctx, {
+    firstName: 'Administración', lastName: 'SIGSA', dni: '20000001',
+    email: 'admin@sigsa.demo', gender: 'other', birthday: '1990-01-01',
+    role: 'admin', createdAt: daysAgoAt(WINDOW_DAYS, 9),
+  });
+  bump('usuarios');
 
   // ── El elenco de la demo ────────────────────────────────────────────────
   const lucia = await createUser(ctx, {
@@ -620,6 +631,7 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
   }
 
   title('CUENTAS PARA LA DEMO');
+  info(`backoffice     Administración SIGSA  admin@sigsa.demo              ${DEMO_PASSWORD}`);
   info(`responsable    Pedro Martinez        1999pedromartinez@gmail.com   (tu contraseña actual)`);
   info(`integrante     Lucía Gutiérrez       lucia.gutierrez@sigsa.demo    ${DEMO_PASSWORD}`);
   info(`integrante     Martín Gutiérrez      martin.gutierrez@sigsa.demo   ${DEMO_PASSWORD}`);

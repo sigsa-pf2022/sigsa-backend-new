@@ -183,6 +183,23 @@ export class NotificationsService {
     });
   }
 
+  /** Avisa al paciente que un profesional se vinculó con él. */
+  async createForProfessionalLinked(params: {
+    patientProfessionalId: number;
+    patientUserId: number;
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.patientProfessionalId,
+      type: NotificationType.PROFESSIONAL_LINKED,
+      groupId: null,
+      scheduledFor: new Date(),
+      leadMinutes: 0,
+      memberUserIds: [params.patientUserId],
+      payload: params.payload,
+    });
+  }
+
   async createForProfessionalLinkAccepted(params: {
     patientProfessionalId: number;
     professionalUserId: number;

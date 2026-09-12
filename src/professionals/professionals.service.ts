@@ -219,7 +219,31 @@ export class ProfessionalsService {
       patientId: dto.patientId,
       patientType: dto.patientType,
     });
-    return this.patientProfessionalRepository.save(link);
+    const savedLink = await this.patientProfessionalRepository.save(link);
+
+    // A diferencia del dependiente, acá no hay autorización de por medio: el
+    // vínculo queda hecho al instante. Al menos se le avisa a la persona, que
+    // si no se enteraría recién al ver al profesional en su lista.
+    try {
+      const professional = await this.professionalUserRepository.findOne({
+        where: { id: professionalId },
+      });
+      await this.notificationsService.createForProfessionalLinked({
+        patientProfessionalId: savedLink.id,
+        patientUserId: dto.patientId,
+        payload: {
+          professionalName: professional
+            ? `${professional.firstName} ${professional.lastName}`.trim()
+            : 'Un profesional',
+          licenseNumber: professional?.licenseNumber ?? null,
+        },
+      });
+    } catch (err) {
+      // El aviso no puede tumbar la vinculación en sí.
+      console.error('Error avisando al paciente de la vinculación:', err?.message || err);
+    }
+
+    return savedLink;
   }
 
   async unlinkPatient(
