@@ -16,7 +16,15 @@ function dashboardWindow() {
   return { from, to };
 }
 
-type Check = { label: string; sql: string; params?: any[]; expect: (n: number) => boolean; hint: string };
+type Check = {
+  label: string;
+  sql: string;
+  params?: any[];
+  expect: (n: number) => boolean;
+  hint: string;
+  /** Depende del estado del emulador, no de los datos: avisa pero no bloquea. */
+  warnOnly?: boolean;
+};
 
 export async function verify(qr: QueryRunner): Promise<number> {
   const { from, to } = dashboardWindow();
@@ -116,15 +124,24 @@ export async function verify(qr: QueryRunner): Promise<number> {
       sql: `SELECT count(*)::int AS n FROM notification_device_tokens WHERE "userId"=$1 AND enabled`,
       params: [OWNER_ID],
       expect: (n) => n >= 1,
-      hint: 'sin token habilitado no llega ningún push a su teléfono',
+      hint: 'iniciá sesión con esa cuenta en el teléfono para registrar su token',
+      // El token se asigna a quien haya iniciado sesión en el dispositivo, así
+      // que esto no lo puede arreglar la siembra: avisa, pero no la aborta.
+      warnOnly: true,
     },
   ];
 
   title('INVARIANTES');
   for (const c of checks) {
     const n = await count(qr, c.sql, c.params ?? []);
-    if (c.expect(n)) ok(`${c.label} (${n})`);
-    else { bad(`${c.label} → ${n}: ${c.hint}`); failures++; }
+    if (c.expect(n)) {
+      ok(`${c.label} (${n})`);
+    } else if (c.warnOnly) {
+      info(`\x1b[33m[..]\x1b[0m ${c.label} → ${n}: ${c.hint}`);
+    } else {
+      bad(`${c.label} → ${n}: ${c.hint}`);
+      failures++;
+    }
   }
 
   title('LO QUE VA A MOSTRAR EL DASHBOARD');
