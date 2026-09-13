@@ -10,6 +10,7 @@ import { random } from './utils/random-number';
 import { User } from './entities/user.entity';
 import { NormalUser } from './entities/normal-user.entity';
 import { Role } from 'src/roles/enums/role.enum';
+import { normalizeEmail } from './utils/normalize-email';
 
 @Injectable()
 export class UsersService {
@@ -21,11 +22,17 @@ export class UsersService {
   ) {}
 
   async getUserByEmail(email: string) {
-    return await this.userRepository.findOne({ where: { email } });
+    // Normalizar también al leer cubre las filas que ya se guardaron con
+    // mayúsculas antes de este arreglo.
+    return await this.userRepository.findOne({
+      where: { email: normalizeEmail(email) },
+    });
   }
 
   async existingUser(email: string, dni: string) {
-    return await this.userRepository.findOne({ where: [{ email }, { dni }] });
+    return await this.userRepository.findOne({
+      where: [{ email: normalizeEmail(email) }, { dni }],
+    });
   }
 
   // async getFullUserByUsername(username: number) {
@@ -92,6 +99,7 @@ export class UsersService {
     const password = hashSync(createUserDto.password, 10);
     const newUser = this.normalUserRepository.create({
       ...createUserDto,
+      email: normalizeEmail(createUserDto.email),
       password,
     });
     newUser.verificationCode = random();

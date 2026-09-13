@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -39,13 +40,21 @@ export class FamilyGroupsController {
       const { name, members, ...dependent } = createFamilyGroupDto;
       const userMembers = [];
 
-      const existingDnis = members.map((member) => member.dni);
+      const invitados = Array.isArray(members) ? members : [];
+      const existingDnis = invitados.map((member) => member.dni);
       if (!existingDnis.includes(user.dni)) {
         userMembers.push(user);
       }
 
-      for (const member of members) {
+      for (const member of invitados) {
         const foundUser = await this.userService.getFullUserByDni(member.dni);
+        // Sin esta guarda, un DNI que no corresponde a ningún usuario hacía
+        // reventar el alta entera con un error irreconocible.
+        if (!foundUser) {
+          throw new BadRequestException(
+            `No encontramos un usuario con el DNI ${member.dni}`,
+          );
+        }
         if (!userMembers.find((u) => u.id === foundUser.id)) {
           userMembers.push(foundUser);
         }
@@ -60,8 +69,17 @@ export class FamilyGroupsController {
         );
       return { status: HttpStatus.CREATED, id: newFamilyGroup.id };
     } catch (error) {
+      // El mensaje genérico dejaba al cliente sin saber qué corregir, y sin
+      // rastro en el servidor la causa había que adivinarla.
+      console.error('Error creando el grupo familiar:', error?.message || error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       throw new HttpException(
-        { message: 'No se pudo crear el grupo', status: 'error' },
+        {
+          message: 'No se pudo crear el grupo. Revisá los datos del dependiente.',
+          status: 'error',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }

@@ -24,6 +24,7 @@ import { DocumentsService } from 'src/documents/documents.service';
 import { UsersService } from 'src/users/users.service';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { normalizeEmail } from 'src/users/utils/normalize-email';
 
 @Injectable()
 export class ProfessionalsService {
@@ -124,9 +125,22 @@ export class ProfessionalsService {
   async createProfessional(
     createProfessionalDto: CreateProfessionalDto,
   ): Promise<ProfessionalUser> {
+    const email = normalizeEmail(createProfessionalDto.email);
+
+    // A diferencia del alta de usuario común, acá no había ningún chequeo de
+    // duplicados: quedaba todo librado a la constraint de la base, que además
+    // distingue mayúsculas.
+    const existing = await this.professionalUserRepository.manager
+      .getRepository(User)
+      .findOne({ where: [{ email }, { dni: createProfessionalDto.dni }] });
+    if (existing) {
+      throw new BadRequestException('Ya existe una cuenta con ese email o DNI');
+    }
+
     const password = hashSync(createProfessionalDto.password, 10);
     const newProfessional = this.professionalUserRepository.create({
       ...createProfessionalDto,
+      email,
       password,
     });
     newProfessional.verificationCode = random();
