@@ -47,7 +47,7 @@ export class MedsEventService {
         status: Not(EventStatus.CANCELED),
       },
       relations: {
-        med: true,
+        med: { measurementUnit: true },
       },
       order: {
         date: 'DESC',
@@ -66,7 +66,7 @@ export class MedsEventService {
         status: Not(EventStatus.CANCELED),
       },
       relations: {
-        med: true,
+        med: { measurementUnit: true },
         // Para mostrar "X se hizo cargo" sin otra consulta.
         takenChargeBy: true,
       },
@@ -91,7 +91,7 @@ export class MedsEventService {
         date: sinceStartOfToday(),
       },
       relations: {
-        med: true,
+        med: { measurementUnit: true },
       },
       order: {
         date: 'ASC',
@@ -115,7 +115,7 @@ export class MedsEventService {
         date: sinceStartOfToday(),
       },
       relations: {
-        med: true,
+        med: { measurementUnit: true },
       },
       order: {
         date: 'ASC',
@@ -133,7 +133,7 @@ export class MedsEventService {
         status: Not(EventStatus.CANCELED),
       },
       relations: {
-        med: true,
+        med: { measurementUnit: true },
       },
       order: {
         date: 'DESC',
@@ -157,7 +157,7 @@ export class MedsEventService {
         date: sinceStartOfToday(),
       },
       relations: {
-        med: true,
+        med: { measurementUnit: true },
       },
       order: {
         date: 'ASC',
@@ -243,7 +243,7 @@ export class MedsEventService {
         createdByType: this.getCreatorType(creator),
         status: Not(EventStatus.CANCELED),
       },
-      relations: { med: true },
+      relations: { med: { measurementUnit: true } },
       order: { date: 'ASC' },
     });
 
@@ -495,7 +495,7 @@ export class MedsEventService {
       // Sin el select acotado la relación arrastraría el hash de la contraseña.
       select: { takenChargeBy: { id: true, firstName: true, lastName: true } },
       where: { id },
-      relations: { med: true, takenChargeBy: true },
+      relations: { med: { measurementUnit: true }, takenChargeBy: true },
     });
   }
 }

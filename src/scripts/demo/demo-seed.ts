@@ -480,10 +480,19 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
     professionalName: 'Julián Ferreyra', description: 'Chequeo anual',
   });
   bump('turnos');
+  // Tratamiento propio de Pedro: cuatro tomas cada 12 h desde hoy a las 8, de
+  // modo que a la hora de la demo haya tomas vencidas y tomas por venir.
+  //
+  // Todas en `created` y ninguna en `confirmed`: un usuario sin grupo no tiene
+  // forma de marcar una toma como tomada. El detalle sólo ofrece "Me hago
+  // cargo" y sólo dentro de un grupo, la notificación sólo registra las
+  // acciones `take_charge`/`dismiss` de un evento de grupo, y el handler de
+  // `confirm` es un stub vacío. Sembrar `confirmed` mostraba un estado que la
+  // app no puede producir, y que nadie sabría explicar si lo preguntan.
   for (let i = 0; i < 4; i++) {
     await createEvent(ctx, {
-      kind: 'med_event', date: addHours(daysAgoAt(1, 8), i * 12), createdAt: daysAgoAt(1, 7),
-      status: i < 2 ? 'confirmed' : 'created', creator: pedro, medId: 1,
+      kind: 'med_event', date: addHours(daysAgoAt(0, 8), i * 12), createdAt: daysAgoAt(1, 7),
+      status: 'created', creator: pedro, medId: 1,
       medName: 'Ibuprofeno 400mg',
       series: { seriesId: '44444444-4444-4444-8444-444444444444', doseIndex: i + 1, totalDoses: 4, intervalHours: 12 },
     });
