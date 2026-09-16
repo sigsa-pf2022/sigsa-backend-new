@@ -73,6 +73,12 @@ export class AppointmentsController {
         id: a.id,
         status: a.status,
         description: a.description,
+        // El service ya trae la relación, pero este map la descartaba: en el
+        // listado del grupo nunca aparecía "X se hizo cargo" y otro integrante
+        // tenía que entrar al detalle para enterarse de que ya estaba tomado.
+        takenChargeByUserId: a.takenChargeByUserId,
+        takenChargeBy: a.takenChargeBy,
+        takenChargeAt: a.takenChargeAt,
       };
     });
     return appointments;

@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException, Injectable, NotFoundException } 
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { Appointment } from 'src/appointments/appointment.entity';
+import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { FamilyGroup } from 'src/family-groups/entities/family-group.entity';
 import { MedEvent } from 'src/meds/meds-event/med-event.entity';
 import { Notification } from 'src/notifications/entities/notification.entity';
@@ -161,9 +162,17 @@ export class GroupEventsService {
     const actor = await this.userRepo.findOne({ where: { id: userId } });
     const actorName = actor ? `${actor.firstName} ${actor.lastName}`.trim() : 'Alguien';
 
+    // Hacerse cargo también confirma el evento. Antes eran dos ejes separados
+    // —el status por un lado, quién se ocupa por el otro— y en la pantalla
+    // convivían "Confirmar turno" y "Me hago cargo" como si fueran opciones
+    // distintas. Se unificaron en la segunda: es la que además avisa al grupo y
+    // queda en el historial, así que confirmar por separado no aportaba nada.
+    //
+    // Vale para turnos y para tomas de medicamento: `getRepo` resuelve los dos.
     await this.getRepo(targetType).update(event.id, {
       takenChargeByUserId: userId,
       takenChargeAt: now,
+      status: EventStatus.CONFIRMED,
     } as any);
 
     await this.recipientRepo.update(recipient.id, {

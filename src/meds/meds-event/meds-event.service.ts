@@ -238,12 +238,22 @@ export class MedsEventService {
    */
   async getMedTreatmentsByCreator(creator: User | Dependent) {
     const events = await this.medEventRepository.find({
+      // Sin el select acotado la relación arrastraría el hash de la contraseña.
+      select: {
+        takenChargeBy: { id: true, firstName: true, lastName: true },
+      },
       where: {
         createdById: creator.id,
         createdByType: this.getCreatorType(creator),
         status: Not(EventStatus.CANCELED),
       },
-      relations: { med: { measurementUnit: true } },
+      relations: {
+        med: { measurementUnit: true },
+        // Igual que en getMedsEventsByDependent: sin esta relación el listado
+        // del grupo no podía mostrar "X se hizo cargo", porque el nombre sale
+        // de acá y llegaba undefined.
+        takenChargeBy: true,
+      },
       order: { date: 'ASC' },
     });
 

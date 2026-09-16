@@ -422,7 +422,15 @@ export class AppointmentsService {
       }
 
       // Determinar leadMinutes (constante por ahora 15)
-      const leadMinutes = 15;
+      // ▼▼▼ DEMO — REVERTIR DESPUÉS ▼▼▼
+      // Mismo truco que en notifications.service.ts (ver la nota larga ahí): el
+      // push del turno sale apenas se crea, en vez de 15 minutos antes de la
+      // hora del turno.
+      //
+      // Para volver atrás: borrar este bloque y descomentar la línea de abajo.
+      // const leadMinutes = 15;
+      const leadMinutes = 60 * 24 * 365;
+      // ▲▲▲ DEMO — REVERTIR DESPUÉS ▲▲▲
 
       // Payload simple (podemos mejorar luego con nombres de profesional)
       const professional = appointment.myProfessional || appointment.professional;

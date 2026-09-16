@@ -91,7 +91,17 @@ export class NotificationsService {
       type: NotificationType.MEDICATION,
       groupId: params.groupId,
       scheduledFor: params.scheduledFor,
-      leadMinutes: 5,
+      // ▼▼▼ DEMO — REVERTIR DESPUÉS ▼▼▼
+      // El scheduler dispara cuando `scheduledFor - leadMinutes` ya pasó. Con un
+      // lead de un año esa resta siempre cae en el pasado, así que el push sale
+      // en el primer barrido del cron (dentro del minuto) sin importar para
+      // cuándo sea el recordatorio: se crea en vivo y suena al toque, sin tener
+      // que agendarlo dentro de una ventana de 5 minutos.
+      //
+      // Para volver atrás: borrar este bloque y descomentar la línea de abajo.
+      // leadMinutes: 5,
+      leadMinutes: 60 * 24 * 365,
+      // ▲▲▲ DEMO — REVERTIR DESPUÉS ▲▲▲
       memberUserIds: params.memberUserIds,
       payload: params.payload,
     });
