@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   HttpStatus,
@@ -157,6 +158,15 @@ export class MedsEventController {
     // El id del que cancela va al historial del grupo.
     await this.medsEventService.cancelMedEvent(id, Number(request.user.id));
     return { status: HttpStatus.OK };
+  }
+
+  /**
+   * Borrado real, para el recordatorio cargado por error. Si la toma es parte
+   * de un tratamiento se borra la serie completa.
+   */
+  @Delete(':id')
+  async deleteMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    return this.medsEventService.deleteMedEvent(id, Number(request.user.id));
   }
 
   @Patch(':id/confirm')

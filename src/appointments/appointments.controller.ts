@@ -116,6 +116,18 @@ export class AppointmentsController {
     );
   }
 
+  /**
+   * Borrado real, para el turno cargado por error. Distinto de `/cancel/:id`,
+   * que sólo cambia el estado y deja el turno a la vista.
+   */
+  @Delete('/:id')
+  deleteAppointment(@Request() req) {
+    return this.appoinmentsService.deleteAppointment(
+      Number(req.params.id),
+      Number(req.user.id),
+    );
+  }
+
   @Put('/confirm/:id')
   confirmAppointment(@Request() req) {
     return this.appoinmentsService.confirmAppointment(req.params.id);

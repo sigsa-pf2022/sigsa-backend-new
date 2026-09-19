@@ -10,6 +10,8 @@ import { GroupEventAction, GroupEventTargetType } from '../enums/group-event-act
  */
 @Entity('group_event_log')
 @Index(['groupId', 'createdAt'])
+// El historial se agrupa por evento, así que se consulta por target.
+@Index(['targetType', 'targetId'])
 export class GroupEventLog {
   @PrimaryGeneratedColumn()
   id: number;

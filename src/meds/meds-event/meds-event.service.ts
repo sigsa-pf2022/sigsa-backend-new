@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { User } from 'src/users/entities/user.entity';
@@ -351,6 +356,120 @@ export class MedsEventService {
     }
 
     return { canceled: upcoming.length };
+  }
+
+  /**
+   * Borra un recordatorio de verdad, para el caso de la carga equivocada.
+   *
+   * Si la toma pertenece a un tratamiento se borra **la serie entera**, nunca
+   * una toma suelta: `totalDoses`, `doseIndex` e `intervalHours` están
+   * denormalizados en cada fila y no se recalculan, así que sacar la toma 3 de 9
+   * dejaría la app diciendo "9 tomas" sobre 8 filas y con un hueco en los
+   * índices. Cancelar no tiene el problema porque la fila sobrevive.
+   */
+  async deleteMedEvent(id: number, actorUserId?: number) {
+    const medEvent = await this.medEventRepository.findOne({
+      where: { id },
+      relations: { med: true },
+    });
+    if (!medEvent) {
+      throw new NotFoundException('El recordatorio no existe');
+    }
+
+    const doses = medEvent.seriesId
+      ? await this.medEventRepository.find({
+          where: { seriesId: medEvent.seriesId },
+          relations: { med: true },
+          order: { doseIndex: 'ASC' },
+        })
+      : [medEvent];
+
+    const tomado = doses.find((d) => d.takenChargeByUserId);
+    if (tomado) {
+      throw new ConflictException(
+        'Alguien ya se hizo cargo de este recordatorio. Cancelalo en vez de borrarlo.',
+      );
+    }
+    await this.assertCanDelete(
+      medEvent.createdByType,
+      medEvent.createdById,
+      actorUserId,
+    );
+
+    const ids = doses.map((d) => d.id);
+    // El historial primero: sobrevive al borrado porque guarda los nombres
+    // resueltos y no tiene foreign key contra el evento.
+    await this.logDeletion(doses[0], doses[0].med?.name, actorUserId, {
+      ...(medEvent.seriesId ? { treatment: true, deletedDoses: ids.length } : {}),
+    });
+
+    try {
+      await this.notificationsService.deleteForReferences(
+        [NotificationType.MEDICATION, NotificationType.EVENT_TAKEN_CHARGE, NotificationType.EVENT_DECLINED],
+        ids,
+      );
+    } catch (err) {
+      console.error('Error borrando notificaciones del medicamento:', err?.message || err);
+    }
+
+    await this.medEventRepository.remove(doses);
+    return { deleted: ids.length };
+  }
+
+
+  /**
+   * Quién puede borrar. Hoy ningún endpoint de cancelar o editar valida nada
+   * —cualquier usuario autenticado puede tocar el evento de cualquiera sabiendo
+   * el id—, pero el borrado es destructivo y no se deshace, así que al menos
+   * este no se suma al agujero.
+   */
+  private async assertCanDelete(
+    createdByType: string,
+    createdById: number,
+    userId: number,
+  ) {
+    if (createdByType === 'dependent') {
+      const group = await this.familyGroupsService.findByDependentId(createdById);
+      if (!group) throw new ForbiddenException('No podés borrar este evento');
+      await this.groupEventsService.assertMembership(group.id, userId);
+      return;
+    }
+    if (createdById !== userId) {
+      throw new ForbiddenException('No podés borrar este evento');
+    }
+  }
+
+  /** Deja constancia del borrado, con los datos ya resueltos. */
+  private async logDeletion(
+    medEvent: MedEvent,
+    medName?: string,
+    actorUserId?: number,
+    extra?: Record<string, any>,
+  ) {
+    try {
+      if (medEvent.createdByType !== 'dependent' || !medEvent.createdById) return;
+
+      const group = await this.familyGroupsService.findByDependentId(medEvent.createdById);
+      if (!group) return;
+
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId: actorUserId ?? null,
+        action: GroupEventAction.EVENT_DELETED,
+        targetType: GroupEventTargetType.MED_EVENT,
+        targetId: medEvent.id,
+        payload: {
+          medName: medName || 'Medicamento',
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: medEvent.date,
+          ...(extra || {}),
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando el borrado del medicamento:', err?.message || err);
+    }
   }
 
   private async cancelNotificationsFor(medEventIds: number[]) {

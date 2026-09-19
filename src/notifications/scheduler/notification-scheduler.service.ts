@@ -106,6 +106,20 @@ export class NotificationSchedulerService {
       };
     }
 
+    if (notification.type === 'event_declined') {
+      const actor = titleCase(notification.payload?.actorName) || 'Un integrante';
+      const what =
+        notification.payload?.originalType === 'appointment'
+          ? `del turno${dep}`
+          : `del medicamento${dep}`;
+      return {
+        title: `${actor} no puede`,
+        // Se dice explícitamente que sigue pendiente: es el punto del aviso.
+        body: `No va a poder ocuparse ${what}. Sigue sin resolver.`,
+        data: baseData,
+      };
+    }
+
     const titleBase = notification.type === 'appointment' ? 'Turno' : 'Medicamento';
     const title = `${titleBase}${dep}`;
     // El nombre del medicamento se deja tal cual: lleva unidades ("400mg").

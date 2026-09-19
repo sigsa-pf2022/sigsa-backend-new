@@ -1,6 +1,11 @@
 import { LessThan } from 'typeorm';
 import { subDays } from 'date-fns';
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { NotificationType } from 'src/notifications/enums/notification-type.enum';
@@ -287,6 +292,106 @@ export class AppointmentsService {
     }
 
     return result;
+  }
+
+  /**
+   * Borra el turno de verdad. Es para lo que se cargó por error: si el turno
+   * existió y se suspendió, va `cancelAppointment`, que deja rastro visible.
+   *
+   * Sólo mientras nadie se haya hecho cargo. Si un integrante ya se comprometió,
+   * el grupo coordinó sobre ese turno y hacerlo desaparecer de la vista de todos
+   * sería peor que dejarlo cancelado.
+   */
+  async deleteAppointment(id: number, actorUserId?: number) {
+    const appointment = await this.appointmentRepository.findOne({
+      where: { id },
+      relations: { professional: true, myProfessional: true },
+    });
+    if (!appointment) {
+      throw new NotFoundException('El turno no existe');
+    }
+    if (appointment.takenChargeByUserId) {
+      throw new ConflictException(
+        'Alguien ya se hizo cargo de este turno. Cancelalo en vez de borrarlo.',
+      );
+    }
+    await this.assertCanDelete(
+      appointment.createdByType,
+      appointment.createdById,
+      actorUserId,
+    );
+
+    // El historial queda ANTES del borrado: `group_event_log` guarda los nombres
+    // ya resueltos y no tiene foreign key al evento, así que sobrevive.
+    await this.logDeletion(appointment, actorUserId);
+
+    // Y las notificaciones también antes, o el scheduler despacharía el push de
+    // un turno que ya no existe.
+    try {
+      await this.notificationsService.deleteForReferences(
+        [NotificationType.APPOINTMENT, NotificationType.EVENT_TAKEN_CHARGE, NotificationType.EVENT_DECLINED],
+        [id],
+      );
+    } catch (err) {
+      console.error('Error borrando notificaciones del turno:', err?.message || err);
+    }
+
+    await this.appointmentRepository.remove(appointment);
+    return { deleted: true };
+  }
+
+
+  /**
+   * Quién puede borrar. Hoy ningún endpoint de cancelar o editar valida nada
+   * —cualquier usuario autenticado puede tocar el evento de cualquiera sabiendo
+   * el id—, pero el borrado es destructivo y no se deshace, así que al menos
+   * este no se suma al agujero.
+   */
+  private async assertCanDelete(
+    createdByType: string,
+    createdById: number,
+    userId: number,
+  ) {
+    if (createdByType === 'dependent') {
+      const group = await this.familyGroupsService.findByDependentId(createdById);
+      if (!group) throw new ForbiddenException('No podés borrar este evento');
+      await this.groupEventsService.assertMembership(group.id, userId);
+      return;
+    }
+    if (createdById !== userId) {
+      throw new ForbiddenException('No podés borrar este evento');
+    }
+  }
+
+  /** Deja constancia de que el turno se borró, con los datos ya resueltos. */
+  private async logDeletion(appointment: Appointment, actorUserId?: number) {
+    try {
+      if (appointment.createdByType !== 'dependent' || !appointment.createdById) return;
+
+      const group = await this.familyGroupsService.findByDependentId(appointment.createdById);
+      if (!group) return;
+
+      const professional = appointment.myProfessional || appointment.professional;
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId: actorUserId ?? null,
+        action: GroupEventAction.EVENT_DELETED,
+        targetType: GroupEventTargetType.APPOINTMENT,
+        targetId: appointment.id,
+        payload: {
+          professionalName: professional
+            ? `${professional.firstName || ''} ${professional.lastName || ''}`.trim()
+            : null,
+          description: appointment.description,
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: appointment.date,
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando el borrado del turno:', err?.message || err);
+    }
   }
 
   private async cancelNotificationsFor(appointmentIds: number[]) {

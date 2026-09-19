@@ -157,6 +157,40 @@ export class NotificationsService {
   }
 
   /**
+   * Borra las notificaciones de un evento que dejó de existir.
+   *
+   * Cancelar alcanza mientras la fila del evento sobreviva, pero en un borrado
+   * real no: `notifications.referenceId` es un entero suelto sin foreign key, y
+   * el scheduler despacha leyendo sólo esta tabla y su payload cacheado. Una
+   * notificación que sobreviva al evento manda un push de algo inexistente,
+   * cuyo deep link cae en una pantalla rota.
+   *
+   * Se borran las filas en vez de marcarlas porque hay un índice único
+   * `(type, referenceId, groupId)`: dejarlas canceladas bloquearía volver a
+   * crear el mismo evento.
+   *
+   * Cubre también `EVENT_TAKEN_CHARGE`, que apunta al mismo `referenceId` y que
+   * hoy queda huérfano incluso al cancelar.
+   */
+  async deleteForReferences(types: NotificationType[], referenceIds: number[]) {
+    if (!referenceIds?.length || !types?.length) return { deleted: 0 };
+
+    const notifications = await this.notificationRepo.find({
+      where: { type: In(types), referenceId: In(referenceIds) },
+      select: { id: true },
+    });
+    if (!notifications.length) return { deleted: 0 };
+
+    const ids = notifications.map((n) => n.id);
+    // Los recipients tienen onDelete CASCADE hacia notifications, pero se
+    // borran explícitamente para no depender de eso.
+    await this.recipientRepo.delete({ notificationId: In(ids) });
+    await this.notificationRepo.delete({ id: In(ids) });
+
+    return { deleted: ids.length };
+  }
+
+  /**
    * Avisa al resto del grupo que un integrante se hizo cargo de un evento.
    * Es inmediata (leadMinutes 0), igual que los avisos de vinculación.
    */
@@ -169,6 +203,27 @@ export class NotificationsService {
     return this.createNotification({
       referenceId: params.referenceId,
       type: NotificationType.EVENT_TAKEN_CHARGE,
+      groupId: params.groupId,
+      scheduledFor: new Date(),
+      leadMinutes: 0,
+      memberUserIds: params.memberUserIds,
+      payload: params.payload,
+    });
+  }
+
+  /**
+   * Avisa al resto que un integrante no puede ocuparse. Inmediata, igual que la
+   * de "se hizo cargo", pero el evento queda abierto: es coordinación, no cierre.
+   */
+  async createForEventDeclined(params: {
+    referenceId: number;
+    groupId: number | null;
+    memberUserIds: number[];
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.referenceId,
+      type: NotificationType.EVENT_DECLINED,
       groupId: params.groupId,
       scheduledFor: new Date(),
       leadMinutes: 0,
