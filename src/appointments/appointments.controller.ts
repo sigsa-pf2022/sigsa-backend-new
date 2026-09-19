@@ -79,6 +79,8 @@ export class AppointmentsController {
         takenChargeByUserId: a.takenChargeByUserId,
         takenChargeBy: a.takenChargeBy,
         takenChargeAt: a.takenChargeAt,
+        canceledBy: a.canceledBy,
+        canceledAt: a.canceledAt,
       };
     });
     return appointments;
@@ -100,6 +102,8 @@ export class AppointmentsController {
       takenChargeByUserId: appointment.takenChargeByUserId,
       takenChargeBy: appointment.takenChargeBy,
       takenChargeAt: appointment.takenChargeAt,
+      canceledBy: appointment.canceledBy,
+      canceledAt: appointment.canceledAt,
     };
   }
 

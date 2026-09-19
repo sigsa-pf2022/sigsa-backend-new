@@ -54,4 +54,22 @@ export abstract class NotificationEvent {
 
   @Column({ type: 'timestamp', nullable: true })
   takenChargeAt: Date | null;
+
+  /**
+   * Quién canceló el evento. Espeja a `takenChargeBy` porque cumple el mismo
+   * papel: los eventos cancelados dejaron de ocultarse de los listados, así que
+   * el grupo tiene que poder ver quién dio de baja el turno del dependiente, no
+   * sólo que alguien lo hizo.
+   *
+   * Null también cuando canceló el sistema (el parámetro `automatic`).
+   */
+  @Column({ nullable: true })
+  canceledByUserId: number | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'canceledByUserId' })
+  canceledBy: User | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  canceledAt: Date | null;
 }

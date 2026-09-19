@@ -44,7 +44,6 @@ export class MedsEventService {
       where: {
         createdById: user.id,
         createdByType: 'user',
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         med: { measurementUnit: true },
@@ -59,16 +58,17 @@ export class MedsEventService {
     return this.medEventRepository.find({
       select: {
         takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
       },
       where: {
         createdById: dependent.id,
         createdByType: 'dependent',
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         med: { measurementUnit: true },
-        // Para mostrar "X se hizo cargo" sin otra consulta.
+        // Para mostrar "X se hizo cargo" y "X canceló" sin otra consulta.
         takenChargeBy: true,
+        canceledBy: true,
       },
       order: {
         date: 'DESC',
@@ -130,7 +130,6 @@ export class MedsEventService {
       where: {
         createdById: creator.id,
         createdByType: this.getCreatorType(creator),
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         med: { measurementUnit: true },
@@ -241,18 +240,19 @@ export class MedsEventService {
       // Sin el select acotado la relación arrastraría el hash de la contraseña.
       select: {
         takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
       },
       where: {
         createdById: creator.id,
         createdByType: this.getCreatorType(creator),
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         med: { measurementUnit: true },
         // Igual que en getMedsEventsByDependent: sin esta relación el listado
         // del grupo no podía mostrar "X se hizo cargo", porque el nombre sale
-        // de acá y llegaba undefined.
+        // de acá y llegaba undefined. Lo mismo para "X canceló".
         takenChargeBy: true,
+        canceledBy: true,
       },
       order: { date: 'ASC' },
     });
@@ -327,7 +327,12 @@ export class MedsEventService {
     const ids = upcoming.map((d) => d.id);
     await this.medEventRepository.update(
       { id: In(ids) },
-      { status: EventStatus.CANCELED, updatedAt: new Date() },
+      {
+        status: EventStatus.CANCELED,
+        updatedAt: new Date(),
+        canceledByUserId: actorUserId ?? null,
+        canceledAt: new Date(),
+      },
     );
     await this.cancelNotificationsFor(ids);
 
@@ -445,6 +450,8 @@ export class MedsEventService {
     const result = await this.medEventRepository.update(id, {
       status: EventStatus.CANCELED,
       updatedAt: new Date(),
+      canceledByUserId: actorUserId ?? null,
+      canceledAt: new Date(),
     });
     await this.cancelNotificationsFor([id]);
 
@@ -503,9 +510,16 @@ export class MedsEventService {
   getMedEventById(id: number) {
     return this.medEventRepository.findOne({
       // Sin el select acotado la relación arrastraría el hash de la contraseña.
-      select: { takenChargeBy: { id: true, firstName: true, lastName: true } },
+      select: {
+        takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
+      },
       where: { id },
-      relations: { med: { measurementUnit: true }, takenChargeBy: true },
+      relations: {
+        med: { measurementUnit: true },
+        takenChargeBy: true,
+        canceledBy: true,
+      },
     });
   }
 }

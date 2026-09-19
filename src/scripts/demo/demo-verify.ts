@@ -38,13 +38,11 @@ export async function verify(qr: QueryRunner): Promise<number> {
       expect: (n) => n === 0,
       hint: 'hay notificaciones vencidas sin despachar: al arrancar saldrían todas juntas',
     },
-    {
-      label: 'el cron no va a pisar el estado de ningún turno',
-      sql: `SELECT count(*)::int AS n FROM appointment
-             WHERE status='created' AND date < LOCALTIMESTAMP - INTERVAL '1 day'`,
-      expect: (n) => n === 0,
-      hint: 'cancelOldCreatedAppointments los pasaría a canceled en el próximo minuto',
-    },
+    // Acá había una invariante que exigía cero turnos en `created` con más de un
+    // día, porque el cron de tasks.service los pasaba a `canceled` y se perdían
+    // de la vista en plena demo. Ese cron se apagó: ahora un turno viejo sin
+    // resolver se queda en `created` y se muestra como VENCIDO, que es lo
+    // esperado. La invariante ya no aplica.
     {
       label: 'todo evento de dependiente tiene su notificación',
       sql: `SELECT (

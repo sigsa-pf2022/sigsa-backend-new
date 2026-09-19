@@ -92,7 +92,6 @@ export class AppointmentsService {
       where: {
         createdById: user.id,
         createdByType: 'user',
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         myProfessional: true,
@@ -118,17 +117,18 @@ export class AppointmentsService {
           lastName: true,
         },
         takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
       },
       where: {
         createdById: dependent.id,
         createdByType: 'dependent',
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         myProfessional: true,
         professional: true,
-        // Para mostrar "X se hizo cargo" sin otra consulta.
+        // Para mostrar "X se hizo cargo" y "X canceló" sin otra consulta.
         takenChargeBy: true,
+        canceledBy: true,
       },
       order: {
         date: 'DESC',
@@ -216,7 +216,6 @@ export class AppointmentsService {
       where: {
         createdById: creator.id,
         createdByType: this.getCreatorType(creator),
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         myProfessional: true,
@@ -242,13 +241,15 @@ export class AppointmentsService {
           lastName: true,
         },
         takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
       },
       where: { id },
       relations: {
         myProfessional: true,
         professional: true,
-        // Para mostrar "X se hizo cargo" sin otra consulta.
+        // Para mostrar "X se hizo cargo" y "X canceló" sin otra consulta.
         takenChargeBy: true,
+        canceledBy: true,
       },
     });
   }
@@ -271,6 +272,10 @@ export class AppointmentsService {
       {
         status: EventStatus.CANCELED,
         updatedAt: new Date(),
+        // Queda registrado en el evento, no sólo en el historial del grupo:
+        // ahora el turno cancelado sigue visible y tiene que decir quién fue.
+        canceledByUserId: actorUserId ?? null,
+        canceledAt: new Date(),
       },
     );
 
