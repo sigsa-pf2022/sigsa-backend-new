@@ -281,6 +281,16 @@ export class GroupEventsService {
   ) {
     if (!memberIds.length) return;
     try {
+      // `createNotification` deduplica por (tipo, evento, grupo) y hay índice
+      // único, así que si un segundo integrante declina el mismo evento se
+      // reutilizaría la notificación anterior —ya despachada— y el scheduler,
+      // que sólo levanta las CREATED, no la volvería a mandar. Se borra la
+      // previa para que la nueva salga. El historial conserva las dos entradas
+      // igual; lo que se recicla es sólo el aviso.
+      await this.notificationsService.deleteForReferences(
+        [NotificationType.EVENT_DECLINED],
+        [notification.referenceId],
+      );
       await this.notificationsService.createForEventDeclined({
         referenceId: notification.referenceId,
         groupId: notification.groupId,
