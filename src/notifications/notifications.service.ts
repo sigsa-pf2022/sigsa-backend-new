@@ -100,7 +100,10 @@ export class NotificationsService {
       //
       // Para volver atrás: borrar este bloque y descomentar la línea de abajo.
       // leadMinutes: 5,
-      leadMinutes: 60 * 24 * 365,
+      leadMinutes: 60,
+      // Antes era un año, y en un tratamiento todas las tomas caían en el
+      // pasado y salían juntas en el mismo barrido. Con una hora, lo que se
+      // carga para la próxima hora dispara al toque y el resto a su momento.
       // ▲▲▲ DEMO — REVERTIR DESPUÉS ▲▲▲
       memberUserIds: params.memberUserIds,
       payload: params.payload,

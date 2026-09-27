@@ -539,7 +539,10 @@ export class AppointmentsService {
       //
       // Para volver atrás: borrar este bloque y descomentar la línea de abajo.
       // const leadMinutes = 15;
-      const leadMinutes = 60 * 24 * 365;
+      const leadMinutes = 60;
+      // Antes era un año, y en un tratamiento todas las tomas caían en el
+      // pasado y salían juntas en el mismo barrido. Con una hora, lo que se
+      // carga para la próxima hora dispara al toque y el resto a su momento.
       // ▲▲▲ DEMO — REVERTIR DESPUÉS ▲▲▲
 
       // Payload simple (podemos mejorar luego con nombres de profesional)
