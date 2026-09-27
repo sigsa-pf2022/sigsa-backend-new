@@ -126,6 +126,29 @@ export class GroupEventsService {
     return this.respond(notification, userId, action);
   }
 
+  /**
+   * Qué respondió este usuario sobre cada evento: 'discard', 'take_charge' o
+   * null. La app lo usa para no ofrecer "No puedo" a quien ya lo dijo; se pide
+   * por lote porque un tratamiento son varias tomas, cada una con su aviso.
+   */
+  async getMyResponses(targetType: GroupEventTargetType, ids: number[], userId: number) {
+    if (!ids.length) return {};
+    const type =
+      targetType === GroupEventTargetType.MED_EVENT
+        ? NotificationType.MEDICATION
+        : NotificationType.APPOINTMENT;
+    const notifications = await this.notificationRepo.find({
+      where: { type, referenceId: In(ids) },
+      relations: ['recipients'],
+    });
+    const result: Record<number, string | null> = {};
+    for (const n of notifications) {
+      const mine = (n.recipients || []).find((r) => r.userId === userId);
+      result[n.referenceId] = mine?.action ?? null;
+    }
+    return result;
+  }
+
   private async respond(
     notification: Notification,
     userId: number,
@@ -168,6 +191,11 @@ export class GroupEventsService {
     // Antes sólo marcaba la fila del que respondía y ahí moría: nadie se
     // enteraba de que un integrante se había bajado.
     if (action === NotificationRecipientAction.DISCARD) {
+      // Una vez por toma. Sin esto se podía tocar "No puedo" indefinidamente:
+      // cada toque mandaba otro aviso y sumaba otra entrada al historial.
+      if (recipient.status === NotificationRecipientStatus.DISCARDED) {
+        throw new ConflictException('Ya avisaste que no podés');
+      }
       await this.recipientRepo.update(recipient.id, {
         action,
         status: NotificationRecipientStatus.DISCARDED,
@@ -357,7 +385,7 @@ export class GroupEventsService {
       : [];
     const actorsById = new Map(actors.map((a) => [a.id, a]));
 
-    const seriesByDoseId = await this.resolveSeriesIds(entries);
+    const { seriesByDoseId, indexByDoseId } = await this.resolveSeriesIds(entries);
 
     const grupos = new Map<string, any>();
     for (const entry of entries) {
@@ -366,6 +394,16 @@ export class GroupEventsService {
         ...entry,
         actorName: actor ? `${actor.firstName} ${actor.lastName}`.trim() : null,
         actorPhoto: actor?.photo ?? null,
+        // En un tratamiento, "se hizo cargo" o "no puede" sin decir de qué
+        // toma no sirve. Se resuelve acá, así vale también para las entradas
+        // viejas. La creación y la cancelación de la serie entera no llevan
+        // número: son del tratamiento, no de una toma.
+        doseIndex:
+          seriesByDoseId.has(entry.targetId) &&
+          entry.action !== GroupEventAction.EVENT_CREATED &&
+          !entry.payload?.treatment
+            ? indexByDoseId.get(entry.targetId) ?? null
+            : null,
       };
 
       const groupKey = this.historyGroupKey(entry, seriesByDoseId);
@@ -425,7 +463,7 @@ export class GroupEventsService {
     return `${entry.targetType}:${entry.targetId}`;
   }
 
-  /** Qué serie es cada toma, para las entradas que apuntan a un `med_event`. */
+  /** Qué serie y qué número de toma es cada entrada que apunta a un `med_event`. */
   private async resolveSeriesIds(entries: GroupEventLog[]) {
     const doseIds = [
       ...new Set(
@@ -434,15 +472,20 @@ export class GroupEventsService {
           .map((e) => e.targetId),
       ),
     ];
-    if (!doseIds.length) return new Map<number, string>();
+    const seriesByDoseId = new Map<number, string>();
+    const indexByDoseId = new Map<number, number>();
+    if (!doseIds.length) return { seriesByDoseId, indexByDoseId };
 
     const doses = await this.medEventRepo.find({
-      select: { id: true, seriesId: true },
+      select: { id: true, seriesId: true, doseIndex: true },
       where: { id: In(doseIds) },
     });
-    return new Map(
-      doses.filter((d) => d.seriesId).map((d) => [d.id, d.seriesId as string]),
-    );
+    for (const d of doses) {
+      if (!d.seriesId) continue;
+      seriesByDoseId.set(d.id, d.seriesId);
+      if (d.doseIndex) indexByDoseId.set(d.id, d.doseIndex);
+    }
+    return { seriesByDoseId, indexByDoseId };
   }
 
   /** Sólo los integrantes del grupo pueden ver su historial. */

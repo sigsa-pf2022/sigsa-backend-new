@@ -63,6 +63,30 @@ export class GroupEventsController {
     );
   }
 
+  /** Qué respondió el usuario sobre cada evento (`?ids=1,2,3`). */
+  @Get('events/:targetType/my-responses')
+  async getMyResponses(
+    @Param('targetType') targetType: string,
+    @Query('ids') ids: string,
+    @Req() req,
+  ) {
+    if (
+      targetType !== GroupEventTargetType.MED_EVENT &&
+      targetType !== GroupEventTargetType.APPOINTMENT
+    ) {
+      throw new BadRequestException('Tipo de evento inválido');
+    }
+    const parsed = String(ids || '')
+      .split(',')
+      .map((x) => Number(x))
+      .filter((x) => Number.isInteger(x) && x > 0);
+    return this.groupEventsService.getMyResponses(
+      targetType as GroupEventTargetType,
+      parsed,
+      Number(req.user.id),
+    );
+  }
+
   /** Historial del grupo: quién hizo qué. */
   @Get(':groupId/history')
   async getHistory(
