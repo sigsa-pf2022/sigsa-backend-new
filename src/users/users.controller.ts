@@ -21,6 +21,7 @@ import { MailService } from 'src/mail/mail.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ValidateUserDto } from './dto/validate-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UsersService } from './users.service';
 import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
@@ -53,40 +54,44 @@ export class UsersController {
     };
   }
 
+  // Antes los dos endpoints hacían `return error` en el catch: la excepción
+  // salía como cuerpo de una respuesta 201 y la app avanzaba igual.
   @Post('/recovery-password-email')
   async recoveryPasswordEmail(@Body() data) {
-    try {
-      const user = await this.userService.getUserByEmail(data.email);
-      if (!user) {
-        throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
-      }
-      await this.userService
-        .setRecoveryPasswordToken(user)
-        .then(() => this.mailService.sendUserRecoveryPassword(user));
-      return {
-        status: HttpStatus.OK,
-        message: 'Email enviado',
-      };
-    } catch (error) {
-      return error;
+    const user = await this.userService.getUserByEmail(data?.email ?? '');
+    if (!user) {
+      throw new HttpException(
+        { message: 'No existe una cuenta con ese email', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
     }
+    await this.userService.setRecoveryPasswordToken(user);
+    await this.mailService.sendUserRecoveryPassword(user);
+    return {
+      status: HttpStatus.OK,
+      message: 'Email enviado',
+    };
   }
 
   @Post('/reset-password')
-  async resetPassword(@Body() data) {
-    try {
-      const user = await this.userService.getUserByEmail(data.email);
-      if (!user) {
-        throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
-      }
-      await this.userService.resetPassword(data, user);
-      return {
-        status: HttpStatus.OK,
-        message: 'Contraseña reestablecida correctamente',
-      };
-    } catch (error) {
-      return error;
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async resetPassword(@Body() data: ResetPasswordDto) {
+    const user = await this.userService.getUserByEmail(data.email);
+    if (
+      !user ||
+      user.recoveryPasswordToken == null ||
+      user.recoveryPasswordToken !== Number(data.code)
+    ) {
+      throw new HttpException(
+        { message: 'El código es inválido o ya fue usado', status: 'error' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
+    await this.userService.resetPassword(data, user);
+    return {
+      status: HttpStatus.OK,
+      message: 'Contraseña restablecida correctamente',
+    };
   }
 
   @Post('/validate')
@@ -99,7 +104,7 @@ export class UsersController {
       throw new HttpException(
         {
           status: 'invalid-code',
-          message: 'Codigo de verificacion de correo incorrecto.',
+          message: 'El código es incorrecto.',
         },
         HttpStatus.BAD_REQUEST,
       );

@@ -110,10 +110,12 @@ export class UsersService {
 
   async validateUser(validateUserDto: ValidateUserDto) {
     const user = await this.getUserByEmail(validateUserDto.email);
+    const expected = user?.[validateUserDto.field];
     return {
       user,
-      isCodeCorrect:
-        user[validateUserDto.field] === Number(validateUserDto.code),
+      // Sin usuario o sin código pendiente no hay nada que coincida (antes el
+      // email inexistente reventaba con un 500).
+      isCodeCorrect: expected != null && expected === Number(validateUserDto.code),
     };
   }
 
