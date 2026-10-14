@@ -207,6 +207,12 @@ export class FamilyGroupsController {
       }
       return { status: HttpStatus.OK, message: 'Miembro eliminado correctamente' };
     } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new HttpException(
+          { message: error.message, status: 'error' },
+          HttpStatus.FORBIDDEN,
+        );
+      }
       throw new HttpException(
         { message: 'Error al eliminar el miembro del grupo', status: 'error' },
         HttpStatus.BAD_REQUEST,

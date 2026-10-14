@@ -167,6 +167,14 @@ export class FamilyGroupsService {
         return false;
       }
 
+      // Cualquiera puede irse del grupo, pero sólo el responsable saca a otros
+      // (mismo criterio que para aceptar solicitudes de profesionales). Antes
+      // cualquier integrante podía sacar incluso al responsable.
+      const isSelf = memberId === user.id;
+      if (!isSelf && group.createdBy.id !== user.id) {
+        throw new ForbiddenException('Sólo el responsable del grupo puede quitar integrantes');
+      }
+
       const isAdminLeaving = group.createdBy.id === memberId;
 
       group.members = group.members.filter((member) => member.id !== memberId);
@@ -201,6 +209,7 @@ export class FamilyGroupsService {
       }
       return true;
     } catch (error) {
+      if (error instanceof ForbiddenException) throw error;
       console.error('Error en removeMemberFromGroup:', error);
       return false;
     }
