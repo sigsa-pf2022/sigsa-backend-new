@@ -170,8 +170,14 @@ export class MedsEventController {
   }
 
   @Patch(':id/confirm')
-  async confirmMedEvent(@Param('id', ParseIntPipe) id: number) {
-    await this.medsEventService.confirmMedEvent(id);
+  async confirmMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    await this.medsEventService.confirmMedEvent(id, Number(request.user.id));
+    return { status: HttpStatus.OK };
+  }
+
+  @Patch(':id/skip')
+  async skipMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    await this.medsEventService.skipMedEvent(id, Number(request.user.id));
     return { status: HttpStatus.OK };
   }
 

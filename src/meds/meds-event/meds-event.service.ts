@@ -21,6 +21,66 @@ import { randomUUID } from 'crypto';
 import { CreateMedEventDto, MAX_DOSES_PER_TREATMENT } from './dto/create-med-event.dto';
 import { MedEvent } from './med-event.entity';
 
+/**
+ * Horas de margen antes de dar por omitida una toma que nadie marcó. Pasado
+ * ese tiempo se asume que no se tomó: no hay cron que la cambie de estado, la
+ * omisión se calcula al vuelo cada vez que se pide la adherencia.
+ */
+export const ADHERENCE_GRACE_HOURS = 2;
+
+export interface Adherence {
+  taken: number;
+  omitted: number;
+  pending: number;
+  /** Porcentaje entero (0-100) de tomas cumplidas; null si todavía no hay nada que medir. */
+  pct: number | null;
+}
+
+/**
+ * Adherencia de un conjunto de tomas (normalmente las de un mismo `seriesId`).
+ *
+ * - Tomada: `confirmed`.
+ * - Omitida: `discarded` ("No la tomé"), o abierta (`created`/`sended`) cuando
+ *   su horario pasó hace más de `ADHERENCE_GRACE_HOURS`.
+ * - Pendiente: el resto de las abiertas.
+ * - Las canceladas no cuentan para nada.
+ *
+ * Función pura (recibe `now`) para poder testearla sin base.
+ */
+export function computeAdherence(
+  events: Array<{ status: string; date: Date | string }>,
+  now: Date = new Date(),
+): Adherence {
+  const graceLimit = now.getTime() - ADHERENCE_GRACE_HOURS * 3600_000;
+  let taken = 0;
+  let omitted = 0;
+  let pending = 0;
+
+  for (const event of events) {
+    switch (event.status) {
+      case EventStatus.CONFIRMED:
+        taken++;
+        break;
+      case EventStatus.DISCARDED:
+        omitted++;
+        break;
+      case EventStatus.CANCELED:
+        break;
+      default:
+        if (new Date(event.date).getTime() < graceLimit) omitted++;
+        else pending++;
+    }
+  }
+
+  const measured = taken + omitted;
+  return {
+    taken,
+    omitted,
+    pending,
+    pct: measured ? Math.round((taken / measured) * 100) : null,
+  };
+}
+
 @Injectable()
 export class MedsEventService {
   constructor(
@@ -301,6 +361,11 @@ export class MedsEventService {
       if (isUpcoming && (!group.nextDose || event.date < group.nextDose.date)) {
         group.nextDose = event;
       }
+    }
+
+    const nowDate = new Date(now);
+    for (const group of groups.values()) {
+      group.adherence = computeAdherence(group.doses, nowDate);
     }
 
     // Primero los tratamientos con toma pendiente, por proximidad; después los
@@ -623,11 +688,84 @@ export class MedsEventService {
     }
   }
 
-  async confirmMedEvent(id: number) {
-    return this.medEventRepository.update(id, {
+  /** "La tomé". */
+  async confirmMedEvent(id: number, actorUserId: number) {
+    const medEvent = await this.findDoseForActor(id, actorUserId);
+    await this.medEventRepository.update(id, {
       status: EventStatus.CONFIRMED,
       updatedAt: new Date(),
     });
+    await this.logDoseResolution(medEvent, actorUserId, GroupEventAction.EVENT_CONFIRMED);
+    return { status: EventStatus.CONFIRMED };
+  }
+
+  /** "No la tomé": la toma queda como omitida para la adherencia. */
+  async skipMedEvent(id: number, actorUserId: number) {
+    const medEvent = await this.findDoseForActor(id, actorUserId);
+    await this.medEventRepository.update(id, {
+      status: EventStatus.DISCARDED,
+      updatedAt: new Date(),
+    });
+    await this.logDoseResolution(medEvent, actorUserId, GroupEventAction.EVENT_SKIPPED);
+    return { status: EventStatus.DISCARDED };
+  }
+
+  /**
+   * Sólo puede marcar una toma quien la cargó para sí, o alguien del grupo si
+   * es de un dependiente. Antes `confirm` no validaba nada.
+   */
+  private async findDoseForActor(id: number, actorUserId: number) {
+    const medEvent = await this.medEventRepository.findOne({
+      where: { id },
+      relations: { med: true },
+    });
+    if (!medEvent) {
+      throw new NotFoundException('El recordatorio no existe');
+    }
+    if (medEvent.createdByType === 'dependent') {
+      const group = await this.familyGroupsService.findByDependentId(medEvent.createdById);
+      const isMember =
+        !!group &&
+        (group.createdBy?.id === actorUserId ||
+          (group.members || []).some((m) => m?.id === actorUserId));
+      if (!isMember) {
+        throw new ForbiddenException('No pertenecés al grupo de este dependiente');
+      }
+    } else if (medEvent.createdById !== actorUserId) {
+      throw new ForbiddenException('No podés modificar este recordatorio');
+    }
+    if (medEvent.status === EventStatus.CANCELED) {
+      throw new ConflictException('El recordatorio está cancelado');
+    }
+    return medEvent;
+  }
+
+  private async logDoseResolution(
+    medEvent: MedEvent,
+    actorUserId: number,
+    action: GroupEventAction,
+  ) {
+    try {
+      if (medEvent.createdByType !== 'dependent') return;
+      const group = await this.familyGroupsService.findByDependentId(medEvent.createdById);
+      if (!group) return;
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId,
+        action,
+        targetType: GroupEventTargetType.MED_EVENT,
+        targetId: medEvent.id,
+        payload: {
+          medName: medEvent.med?.name || 'Medicamento',
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: medEvent.date,
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando la toma en el historial:', err?.message || err);
+    }
   }
 
   getMedEventById(id: number) {

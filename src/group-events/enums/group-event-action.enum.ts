@@ -7,10 +7,14 @@ export enum GroupEventAction {
   /** Se borró un evento cargado por error. La entrada sobrevive al borrado. */
   EVENT_DELETED = 'event_deleted',
   EVENT_CONFIRMED = 'event_confirmed',
+  /** Se marcó una toma como "No la tomé". */
+  EVENT_SKIPPED = 'event_skipped',
   EVENT_CANCELED = 'event_canceled',
   MEMBER_ADDED = 'member_added',
   MEMBER_REMOVED = 'member_removed',
   PROFESSIONAL_LINKED = 'professional_linked',
+  /** Un profesional vinculado dejó una indicación para el dependiente. */
+  PROFESSIONAL_NOTE = 'professional_note',
 }
 
 /** Sobre qué pasó. */
