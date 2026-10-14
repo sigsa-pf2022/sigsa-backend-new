@@ -33,7 +33,10 @@ import { UsersService } from 'src/users/users.service';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { normalizeEmail } from 'src/users/utils/normalize-email';
-import { MedsEventService } from 'src/meds/meds-event/meds-event.service';
+import {
+  computeAdherence,
+  MedsEventService,
+} from 'src/meds/meds-event/meds-event.service';
 import { MedEvent } from 'src/meds/meds-event/med-event.entity';
 import { Appointment } from 'src/appointments/appointment.entity';
 import { EventStatus } from 'src/events/entities/notification-event.entity';
@@ -609,22 +612,29 @@ export class ProfessionalsService {
     const now = Date.now();
     const windowStart = subDays(new Date(now), SUMMARY_TREATMENT_WINDOW_DAYS).getTime();
     const treatments = await this.medsEventService.getMedTreatmentsByCreator(entity as any);
-    const activeTreatments = treatments
-      .filter((t) =>
-        t.doses.some(
-          (d) =>
-            d.status !== EventStatus.CANCELED &&
-            new Date(d.date).getTime() >= windowStart,
-        ),
-      )
-      .map(({ doses, ...t }) => ({
-        ...t,
-        // En curso: le queda alguna toma no cancelada por delante.
-        inProgress: doses.some(
-          (d) =>
-            d.status !== EventStatus.CANCELED && new Date(d.date).getTime() >= now,
-        ),
-      }));
+    const recent = treatments.filter((t) =>
+      t.doses.some(
+        (d) =>
+          d.status !== EventStatus.CANCELED &&
+          new Date(d.date).getTime() >= windowStart,
+      ),
+    );
+    // Adherencia general del período: todas las tomas de la ventana, sean de
+    // tratamientos o sueltas.
+    const overallAdherence = computeAdherence(
+      recent.flatMap((t) =>
+        t.doses.filter((d) => new Date(d.date).getTime() >= windowStart),
+      ),
+      new Date(now),
+    );
+    const activeTreatments = recent.map(({ doses, ...t }) => ({
+      ...t,
+      // En curso: le queda alguna toma no cancelada por delante.
+      inProgress: doses.some(
+        (d) =>
+          d.status !== EventStatus.CANCELED && new Date(d.date).getTime() >= now,
+      ),
+    }));
 
     const [nextAppointment, lastNotes] = await Promise.all([
       this.findNextAppointment(patientId, patientType),
@@ -639,6 +649,7 @@ export class ProfessionalsService {
     return {
       patient: info,
       linkedSince: link.resolvedAt ?? link.createdAt,
+      overallAdherence,
       activeTreatments,
       nextAppointment: nextAppointment
         ? {
