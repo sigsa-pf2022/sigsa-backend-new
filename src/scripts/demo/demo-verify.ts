@@ -109,6 +109,46 @@ export async function verify(qr: QueryRunner): Promise<number> {
       hint: 'la pantalla del grupo se vería sin actividad próxima',
     },
     {
+      label: 'el Dr. Ferreyra tiene turnos futuros de pacientes vinculados en su agenda',
+      sql: `SELECT count(*)::int AS n FROM appointment a
+              JOIN patient_professional pp
+                ON pp.professional_id = a."professionalId" AND pp.status = 'ACCEPTED'
+               AND pp."patientId" = a."createdById" AND pp."patientType"::text = a."createdByType"::text
+             WHERE a."professionalId" = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')
+               AND a.status <> 'canceled' AND a.date >= LOCALTIMESTAMP`,
+      expect: (n) => n >= 3,
+      hint: 'la agenda del profesional se vería vacía',
+    },
+    {
+      label: 'hay indicaciones de Ferreyra a sus pacientes',
+      sql: `SELECT count(*)::int AS n FROM professional_notes
+             WHERE professional_id = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')`,
+      expect: (n) => n >= 2,
+      hint: 'la pestaña Indicaciones de la ficha arrancaría vacía',
+    },
+    {
+      label: 'hay tomas pasadas sin marcar para mostrar adherencia baja',
+      sql: `SELECT count(*)::int AS n FROM med_event e
+              JOIN patient_professional pp ON pp."patientId" = e."createdById"
+               AND pp."patientType" = 'dependent' AND pp.status = 'ACCEPTED'
+               AND pp.professional_id = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')
+             WHERE e."createdByType" = 'dependent' AND e."seriesId" IS NOT NULL
+               AND e.status IN ('created','sended')
+               AND e.date < LOCALTIMESTAMP - INTERVAL '2 hours'`,
+      expect: (n) => n >= 3,
+      hint: 'todas las fichas mostrarían adherencia perfecta',
+    },
+    {
+      label: 'los turnos con Ferreyra dicen "Julián Ferreyra" en la notificación',
+      sql: `SELECT count(*)::int AS n FROM notifications n
+              JOIN appointment a ON a.id = n."referenceId"
+             WHERE n.type = 'appointment'
+               AND a."professionalId" = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')
+               AND n.payload->>'professionalName' <> 'Julián Ferreyra'`,
+      expect: (n) => n === 0,
+      hint: 'el push o el historial nombrarían a otro profesional',
+    },
+    {
       label: 'los catálogos quedaron intactos',
       sql: `SELECT ((SELECT count(*) FROM meds)+(SELECT count(*) FROM meds_drug)
                    +(SELECT count(*) FROM meds_type)+(SELECT count(*) FROM meds_shape)
@@ -153,7 +193,8 @@ export async function verify(qr: QueryRunner): Promise<number> {
             (SELECT count(*) FROM appointment WHERE "createdAt" BETWEEN $1 AND $2) turnos,
             (SELECT count(*) FROM med_event WHERE "createdAt" BETWEEN $1 AND $2) medicamentos,
             (SELECT count(*) FROM medical_document WHERE "createdAt" BETWEEN $1 AND $2) documentos,
-            (SELECT count(*) FROM patient_professional WHERE "createdAt" BETWEEN $1 AND $2) vinculaciones`,
+            (SELECT count(*) FROM patient_professional WHERE "createdAt" BETWEEN $1 AND $2) vinculaciones,
+            (SELECT count(*) FROM professional_notes WHERE "createdAt" BETWEEN $1 AND $2) indicaciones`,
     [from, to],
   );
   Object.entries(ov).forEach(([k, v]) => info(`  ${k.padEnd(16)} ${v}`));

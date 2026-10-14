@@ -389,7 +389,7 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
   await createEvent(ctx, {
     kind: 'appointment', date: daysAgoAt(11, 11), createdAt: daysAgoAt(15, 10),
     status: 'canceled', creator: rosa, group: gA, professionalId: ferreyra,
-    professionalName: 'Verónica Luna', description: 'Control cardiológico',
+    professionalName: 'Julián Ferreyra', description: 'Control cardiológico',
   });
   bump('turnos');
 
@@ -424,7 +424,7 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
   await createEvent(ctx, {
     kind: 'appointment', date: daysAgoAt(2, 9), createdAt: daysAgoAt(8, 9),
     status: 'confirmed', creator: rosa, group: gA, professionalId: ferreyra,
-    professionalName: 'Ricardo Ávila', description: 'Control traumatológico',
+    professionalName: 'Julián Ferreyra', description: 'Control traumatológico',
     takenChargeBy: OWNER_ID,
   });
   bump('turnos');
@@ -458,7 +458,7 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
   await createEvent(ctx, {
     kind: 'appointment', date: daysAgoAt(9, 16), createdAt: daysAgoAt(12, 9),
     status: 'confirmed', creator: tomas, group: gB, professionalId: ferreyra,
-    professionalName: 'Gustavo Paz', description: 'Control pediátrico',
+    professionalName: 'Julián Ferreyra', description: 'Control pediátrico',
     takenChargeBy: lucia,
   });
   bump('turnos');
@@ -639,6 +639,101 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
       createdAt, status: 'ACCEPTED', resolvedAt: addHours(createdAt, 6),
     });
     bump('vinculaciones');
+  }
+
+  // ── Seguimiento de los pacientes de Ferreyra ────────────────────────────
+  // Lo que se ve en su ficha y en su agenda. Sin rng: no se mueve el resto del
+  // set si esto cambia.
+  const ferreyraPatients = [0, 1, 2].map((i) => {
+    const g = fillGroups[i + 5];
+    return {
+      creator: { id: g.dependentId, type: 'dependent' as const, name: g.name },
+      group: { id: g.id, memberIds: g.memberIds },
+    };
+  });
+  const [osvaldo, marta, hugo] = ferreyraPatients;
+
+  // Un tratamiento en curso por paciente, con adherencias distintas: Osvaldo
+  // baja (casi nadie marca las tomas), Marta media y Hugo buena. Las tomas
+  // pasadas sin marcar quedan en `sended` y la app las cuenta como omitidas
+  // pasadas las 2 h de gracia.
+  const treatmentPlan = [
+    { p: osvaldo, seriesId: '55555555-5555-4555-8555-555555555555', medId: 5,
+      medName: 'Enalapril 10mg', start: daysAgoAt(4, 8), every: 12, doses: 14, takenEvery: 4 },
+    { p: marta, seriesId: '66666666-6666-4666-8666-666666666666', medId: 4,
+      medName: 'Omeprazol 20mg', start: daysAgoAt(5, 7), every: 24, doses: 10, takenEvery: 2 },
+    { p: hugo, seriesId: '77777777-7777-4777-8777-777777777777', medId: 2,
+      medName: 'Paracetamol 500mg', start: daysAgoAt(2, 9), every: 8, doses: 12, takenEvery: 1 },
+  ];
+  for (const t of treatmentPlan) {
+    for (let i = 0; i < t.doses; i++) {
+      const date = addHours(t.start, i * t.every);
+      const past = date.getTime() < Date.now();
+      // Hugo: todas tomadas salvo la tercera. El resto: una de cada `takenEvery`.
+      const taken = past && (t.takenEvery === 1 ? i !== 2 : i % t.takenEvery === 0);
+      await createEvent(ctx, {
+        kind: 'med_event', date, createdAt: addHours(t.start, -1),
+        status: !past ? 'created' : taken ? 'confirmed' : 'sended',
+        creator: t.p.creator, group: t.p.group, medId: t.medId, medName: t.medName,
+        takenChargeBy: taken ? t.p.group.memberIds[i % t.p.group.memberIds.length] : null,
+        series: { seriesId: t.seriesId, doseIndex: i + 1, totalDoses: t.doses, intervalHours: t.every },
+      });
+      bump('medicamentos');
+    }
+  }
+
+  // Turnos futuros con Ferreyra para llenar su agenda. Ninguno choca con los
+  // de Rosa (demoStart + 3 h y + 48 h).
+  const agendaPlan: [typeof osvaldo, number, string][] = [
+    [osvaldo, 1, 'Control de presión'],
+    [marta, 23.5, 'Control clínico'],
+    [hugo, 4 * 24 + 6, 'Resultados de laboratorio'],
+    [osvaldo, 8 * 24, 'Seguimiento del tratamiento'],
+  ];
+  for (const [p, hoursFromStart, description] of agendaPlan) {
+    await createEvent(ctx, {
+      kind: 'appointment', date: addHours(ctx.demoStart, hoursFromStart),
+      createdAt: daysAgoAt(3, 12), status: 'created', creator: p.creator, group: p.group,
+      professionalId: ferreyra, professionalName: 'Julián Ferreyra', description,
+    });
+    bump('turnos');
+  }
+
+  // Dos indicaciones de Ferreyra a Osvaldo, con todo lo que la app genera:
+  // la notificación (ya entregada, para que no salga al levantar el backend)
+  // y la entrada del historial del grupo.
+  const notesPlan: [number, string][] = [
+    [6, 'Tomar el Enalapril siempre a la misma hora, con el desayuno y la cena. Si se olvida una toma, no duplicar la siguiente.'],
+    [1, 'Controlar la presión dos veces por día y anotar los valores. Si supera 16/10, avisarme.'],
+  ];
+  for (const [daysAgo, content] of notesPlan) {
+    const createdAt = daysAgoAt(daysAgo, 18);
+    const noteId = await insert(qr, 'professional_notes', {
+      professional_id: ferreyra, patientId: osvaldo.creator.id, patientType: 'dependent',
+      content, createdAt,
+    });
+    const excerpt = content.length > 120 ? `${content.slice(0, 117)}...` : content;
+    const notificationId = await insert(qr, 'notifications', {
+      type: 'professional_note', referenceId: noteId, groupId: osvaldo.group.id,
+      scheduledFor: createdAt, leadMinutes: 0, status: 'sent',
+      payload: JSON.stringify({ professionalName: 'Julián Ferreyra', dependentName: osvaldo.creator.name,
+        dependentId: osvaldo.creator.id, excerpt }),
+      createdAt, updatedAt: createdAt,
+    });
+    for (const userId of osvaldo.group.memberIds) {
+      await insert(qr, 'notification_recipients', {
+        notificationId, userId, status: 'delivered', action: null,
+        deliveredAt: createdAt, respondedAt: null, createdAt,
+      });
+    }
+    await insert(qr, 'group_event_log', {
+      groupId: osvaldo.group.id, actorUserId: ferreyra, action: 'professional_note',
+      targetType: 'member', targetId: ferreyra,
+      payload: JSON.stringify({ professionalName: 'Julián Ferreyra', dependentName: osvaldo.creator.name,
+        noteId, excerpt }),
+      createdAt,
+    });
+    bump('indicaciones');
   }
 
   title('CUENTAS PARA LA DEMO');

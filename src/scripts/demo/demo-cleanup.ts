@@ -33,6 +33,7 @@ const DELETE_ORDER: { table: string; where?: string }[] = [
   { table: 'notification_recipients' },
   { table: 'notifications' },
   { table: 'group_event_log' },
+  { table: 'professional_notes' }, // FK -> user (professional_id)
   { table: 'patient_professional' }, // FK -> user
   { table: 'appointment' }, // FK -> user (professionalId) y -> professionals
   { table: 'med_event' },
