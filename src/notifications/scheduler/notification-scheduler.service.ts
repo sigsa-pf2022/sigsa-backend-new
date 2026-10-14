@@ -115,6 +115,18 @@ export class NotificationSchedulerService {
       };
     }
 
+    if (notification.type === 'professional_note') {
+      const professional = titleCase(notification.payload?.professionalName) || 'tu profesional';
+      const forWhom = notification.payload?.dependentName
+        ? `Para ${titleCase(notification.payload.dependentName)}: `
+        : '';
+      return {
+        title: `Nueva indicación de Dr/a ${professional}`,
+        body: `${forWhom}${notification.payload?.excerpt || 'Tocá para verla.'}`,
+        data: baseData,
+      };
+    }
+
     if (notification.type === 'event_taken_charge') {
       const actor = titleCase(notification.payload?.actorName) || 'Un integrante';
       const what =

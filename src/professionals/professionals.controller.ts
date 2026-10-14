@@ -26,6 +26,8 @@ import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
 import { CreatePatientProfessionalDto } from './dto/create-patient-professional.dto';
+import { CreateProfessionalNoteDto } from './dto/create-professional-note.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { CreateProfessionalSpecializationDto } from './dto/create-professional-specialization.dto';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { Professionals } from './entities/my-professional.entity';
@@ -262,6 +264,73 @@ export class ProfessionalsController {
   @Get('/patients')
   async getPatients(@Req() request) {
     return this.professionalsService.getPatients(request.user.id);
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/agenda')
+  async getAgenda(
+    @Req() request,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.professionalsService.getAgenda(request.user.id, from, to);
+  }
+
+  /** Lado paciente: indicaciones recibidas (propias o de un dependiente). */
+  @UseGuards(JwtAuthGuard)
+  @Get('/notes/received')
+  async getReceivedNotes(
+    @Req() request,
+    @Query('dependentId') dependentId?: string,
+  ) {
+    const depId = Number(dependentId) > 0 ? Number(dependentId) : undefined;
+    return this.professionalsService.getReceivedNotes(request.user.id, depId);
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/patients/:patientId/summary')
+  async getPatientSummary(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Req() request,
+  ) {
+    return this.professionalsService.getPatientSummary(
+      request.user.id,
+      patientId,
+      patientType,
+    );
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/patients/:patientId/notes')
+  async getPatientNotes(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Req() request,
+  ) {
+    return this.professionalsService.getPatientNotes(
+      request.user.id,
+      patientId,
+      patientType,
+    );
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Post('/patients/:patientId/notes')
+  async createPatientNote(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateProfessionalNoteDto,
+    @Req() request,
+  ) {
+    const note = await this.professionalsService.createPatientNote(
+      request.user.id,
+      patientId,
+      patientType,
+      dto.content,
+    );
+    return { status: HttpStatus.CREATED, note };
   }
 
   @UseGuards(RoleGuard([Role.Professional]))

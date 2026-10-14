@@ -283,4 +283,26 @@ export class NotificationsService {
       payload: params.payload,
     });
   }
+
+  /**
+   * Aviso inmediato de una indicación nueva. `groupId` va sólo cuando la
+   * indicación es para un dependiente: el front lo usa para abrir la pantalla
+   * del grupo correcto.
+   */
+  async createForProfessionalNote(params: {
+    noteId: number;
+    groupId: number | null;
+    memberUserIds: number[];
+    payload?: any;
+  }) {
+    return this.createNotification({
+      referenceId: params.noteId,
+      type: NotificationType.PROFESSIONAL_NOTE,
+      groupId: params.groupId,
+      scheduledFor: new Date(),
+      leadMinutes: 0,
+      memberUserIds: params.memberUserIds,
+      payload: params.payload,
+    });
+  }
 }

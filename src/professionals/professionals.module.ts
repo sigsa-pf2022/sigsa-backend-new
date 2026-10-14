@@ -11,6 +11,11 @@ import { MailModule } from 'src/mail/mail.module';
 import { DocumentsModule } from 'src/documents/documents.module';
 import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { MedsEventModule } from 'src/meds/meds-event/meds-event.module';
+import { GroupEventsModule } from 'src/group-events/group-events.module';
+import { ProfessionalNote } from './entities/professional-note.entity';
+import { Appointment } from 'src/appointments/appointment.entity';
+import { MedEvent } from 'src/meds/meds-event/med-event.entity';
 
 @Module({
   imports: [
@@ -19,12 +24,18 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
       ProfessionalSpecialization,
       Professionals,
       PatientProfessional,
+      ProfessionalNote,
+      // Repositorios y no AppointmentsModule: ese módulo importa éste.
+      Appointment,
+      MedEvent,
     ]),
     UsersModule,
     MailModule,
     DocumentsModule,
     FamilyGroupsModule,
     NotificationsModule,
+    MedsEventModule,
+    GroupEventsModule,
   ],
   providers: [ProfessionalsService],
   exports: [ProfessionalsService],

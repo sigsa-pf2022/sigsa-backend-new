@@ -21,4 +21,9 @@ export enum NotificationType {
    * el resto no tenía forma de enterarse de que alguien se había bajado.
    */
   EVENT_DECLINED = 'event_declined',
+  /**
+   * Un profesional vinculado dejó una indicación. Va al paciente, o a todo el
+   * grupo si el paciente es un dependiente.
+   */
+  PROFESSIONAL_NOTE = 'professional_note',
 }

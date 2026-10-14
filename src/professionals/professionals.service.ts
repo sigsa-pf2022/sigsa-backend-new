@@ -8,7 +8,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { hashSync } from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { random } from 'src/users/utils/random-number';
-import { In, Repository } from 'typeorm';
+import { Between, In, MoreThanOrEqual, Not, Repository } from 'typeorm';
+import { addDays, startOfDay, subDays } from 'date-fns';
 import {
   accentInsensitive,
   boolFilter,
@@ -32,6 +33,33 @@ import { UsersService } from 'src/users/users.service';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
 import { NotificationsService } from 'src/notifications/notifications.service';
 import { normalizeEmail } from 'src/users/utils/normalize-email';
+import { MedsEventService } from 'src/meds/meds-event/meds-event.service';
+import { MedEvent } from 'src/meds/meds-event/med-event.entity';
+import { Appointment } from 'src/appointments/appointment.entity';
+import { EventStatus } from 'src/events/entities/notification-event.entity';
+import { GroupEventsService } from 'src/group-events/group-events.service';
+import {
+  GroupEventAction,
+  GroupEventTargetType,
+} from 'src/group-events/enums/group-event-action.enum';
+import { ProfessionalNote } from './entities/professional-note.entity';
+
+/**
+ * La ficha muestra los tratamientos con tomas en este período (o por venir),
+ * así un tratamiento que terminó hace unos días sigue mostrando su adherencia.
+ */
+const SUMMARY_TREATMENT_WINDOW_DAYS = 30;
+const AGENDA_DEFAULT_DAYS = 30;
+/** Estados de turno que no cuentan como turno por venir. */
+const CLOSED_APPOINTMENT_STATUSES = [EventStatus.CANCELED, EventStatus.DISCARDED];
+
+/**
+ * Un paciente con cuenta propia que además es profesional guarda sus eventos
+ * como 'professional' (ver getCreatorType en meds-event/appointments). Los ids
+ * son de la misma tabla `user`, así que aceptar los dos tipos no mezcla nada.
+ */
+const creatorTypesFor = (patientType: string) =>
+  patientType === 'dependent' ? ['dependent'] : ['user', 'professional'];
 
 @Injectable()
 export class ProfessionalsService {
@@ -44,10 +72,18 @@ export class ProfessionalsService {
     private professionalSpecializationsRepository: Repository<ProfessionalSpecialization>,
     @InjectRepository(PatientProfessional)
     private patientProfessionalRepository: Repository<PatientProfessional>,
+    @InjectRepository(ProfessionalNote)
+    private professionalNoteRepository: Repository<ProfessionalNote>,
+    @InjectRepository(Appointment)
+    private appointmentRepository: Repository<Appointment>,
+    @InjectRepository(MedEvent)
+    private medEventRepository: Repository<MedEvent>,
     private readonly documentsService: DocumentsService,
     private readonly usersService: UsersService,
     private readonly familyGroupsService: FamilyGroupsService,
     private readonly notificationsService: NotificationsService,
+    private readonly medsEventService: MedsEventService,
+    private readonly groupEventsService: GroupEventsService,
   ) {}
 
   async createMyProfessional(
@@ -404,10 +440,23 @@ export class ProfessionalsService {
       return { ...link, firstName, lastName };
     };
 
+    // Sólo los aceptados llevan el resumen: de un pendiente el profesional
+    // todavía no puede ver nada.
     const accepted = await Promise.all(
       allLinks
         .filter((l) => l.status === PatientProfessionalStatus.ACCEPTED)
-        .map(enrich),
+        .map(async (link) => {
+          const [base, nextAppointment, activeTreatmentsCount] = await Promise.all([
+            enrich(link),
+            this.findNextAppointment(link.patientId, link.patientType),
+            this.countTreatmentsInProgress(link.patientId, link.patientType),
+          ]);
+          return {
+            ...base,
+            nextAppointmentDate: nextAppointment?.date ?? null,
+            activeTreatmentsCount,
+          };
+        }),
     );
 
     const pending = await Promise.all(
@@ -458,5 +507,308 @@ export class ProfessionalsService {
   ) {
     await this.assertAcceptedLink(professionalId, patientId, patientType);
     return this.documentsService.getDocumentsByPatient(patientId, patientType);
+  }
+
+  // ---- Seguimiento del paciente ----
+
+  /** Nombre y datos básicos del paciente, sea usuario o dependiente. */
+  private async getPatientBasics(patientId: number, patientType: string) {
+    if (patientType === 'dependent') {
+      const dep = await this.familyGroupsService.getDependentById(patientId);
+      if (!dep) throw new NotFoundException('No se encontró el paciente');
+      return {
+        entity: dep,
+        info: {
+          id: dep.id,
+          type: 'dependent',
+          firstName: dep.firstName,
+          lastName: dep.lastName,
+          dni: dep.dni,
+          birthday: dep.birthday,
+          bloodType: dep.bloodType,
+        },
+      };
+    }
+    const user = await this.usersService.getUserById(patientId);
+    if (!user) throw new NotFoundException('No se encontró el paciente');
+    return {
+      entity: user,
+      info: {
+        id: user.id,
+        type: 'user',
+        firstName: user.firstName,
+        lastName: user.lastName,
+        dni: user.dni,
+        birthday: user.birthday,
+        gender: user.gender,
+      },
+    };
+  }
+
+  /** Próximo turno no cancelado del paciente, con cualquier profesional. */
+  private findNextAppointment(patientId: number, patientType: string) {
+    return this.appointmentRepository.findOne({
+      select: {
+        professional: { id: true, firstName: true, lastName: true },
+        myProfessional: { id: true, firstName: true, lastName: true },
+      },
+      where: {
+        createdById: patientId,
+        createdByType: In(creatorTypesFor(patientType)),
+        status: Not(In(CLOSED_APPOINTMENT_STATUSES)),
+        date: MoreThanOrEqual(new Date()),
+      },
+      relations: { professional: true, myProfessional: true },
+      order: { date: 'ASC' },
+    });
+  }
+
+  /**
+   * Tratamientos en curso: los que tienen alguna toma no cancelada por venir.
+   * Una toma única cuenta como un tratamiento, igual que en el listado de la app.
+   */
+  private async countTreatmentsInProgress(patientId: number, patientType: string) {
+    const row = await this.medEventRepository
+      .createQueryBuilder('e')
+      .select(`COUNT(DISTINCT COALESCE(e."seriesId"::text, 'single-' || e.id))`, 'count')
+      .where('e.createdById = :patientId', { patientId })
+      .andWhere('e.createdByType IN (:...types)', { types: creatorTypesFor(patientType) })
+      .andWhere('e.status != :canceled', { canceled: EventStatus.CANCELED })
+      .andWhere('e.date >= :now', { now: new Date() })
+      .getRawOne<{ count: string }>();
+    return Number(row?.count ?? 0);
+  }
+
+  private toNoteResponse(note: ProfessionalNote) {
+    return {
+      id: note.id,
+      content: note.content,
+      createdAt: note.createdAt,
+      patientId: note.patientId,
+      patientType: note.patientType,
+      professional: note.professional
+        ? {
+            id: note.professional.id,
+            firstName: note.professional.firstName,
+            lastName: note.professional.lastName,
+            licenseNumber: note.professional.licenseNumber,
+          }
+        : null,
+    };
+  }
+
+  /** Ficha del paciente para el profesional vinculado. */
+  async getPatientSummary(
+    professionalId: number,
+    patientId: number,
+    patientType: string,
+  ) {
+    const link = await this.assertAcceptedLink(professionalId, patientId, patientType);
+    const { entity, info } = await this.getPatientBasics(patientId, patientType);
+
+    const now = Date.now();
+    const windowStart = subDays(new Date(now), SUMMARY_TREATMENT_WINDOW_DAYS).getTime();
+    const treatments = await this.medsEventService.getMedTreatmentsByCreator(entity as any);
+    const activeTreatments = treatments
+      .filter((t) =>
+        t.doses.some(
+          (d) =>
+            d.status !== EventStatus.CANCELED &&
+            new Date(d.date).getTime() >= windowStart,
+        ),
+      )
+      .map(({ doses, ...t }) => ({
+        ...t,
+        // En curso: le queda alguna toma no cancelada por delante.
+        inProgress: doses.some(
+          (d) =>
+            d.status !== EventStatus.CANCELED && new Date(d.date).getTime() >= now,
+        ),
+      }));
+
+    const [nextAppointment, lastNotes] = await Promise.all([
+      this.findNextAppointment(patientId, patientType),
+      this.professionalNoteRepository.find({
+        where: { professionalId, patientId, patientType },
+        relations: { professional: true },
+        order: { createdAt: 'DESC' },
+        take: 3,
+      }),
+    ]);
+
+    return {
+      patient: info,
+      linkedSince: link.resolvedAt ?? link.createdAt,
+      activeTreatments,
+      nextAppointment: nextAppointment
+        ? {
+            id: nextAppointment.id,
+            date: nextAppointment.date,
+            description: nextAppointment.description,
+            status: nextAppointment.status,
+            professional: nextAppointment.professional ?? nextAppointment.myProfessional ?? null,
+            withMe: nextAppointment.professional?.id === professionalId,
+          }
+        : null,
+      lastNotes: lastNotes.map((n) => this.toNoteResponse(n)),
+    };
+  }
+
+  async createPatientNote(
+    professionalId: number,
+    patientId: number,
+    patientType: string,
+    content: string,
+  ) {
+    await this.assertAcceptedLink(professionalId, patientId, patientType);
+    const { info } = await this.getPatientBasics(patientId, patientType);
+    const professional = await this.professionalUserRepository.findOne({
+      where: { id: professionalId },
+    });
+
+    const note = await this.professionalNoteRepository.save(
+      this.professionalNoteRepository.create({
+        professionalId,
+        patientId,
+        patientType,
+        content,
+      }),
+    );
+    note.professional = professional;
+
+    // Ni el push ni el historial pueden tumbar la indicación ya guardada.
+    try {
+      const professionalName = professional
+        ? `${professional.firstName} ${professional.lastName}`.trim()
+        : 'Un profesional';
+      const excerpt = content.length > 120 ? `${content.slice(0, 117)}...` : content;
+
+      if (patientType === 'dependent') {
+        const group = await this.familyGroupsService.findByDependentId(patientId);
+        if (group) {
+          const ids = new Set<number>();
+          if (group.createdBy?.id) ids.add(group.createdBy.id);
+          (group.members || []).forEach((m) => m?.id && ids.add(m.id));
+          const dependentName = `${info.firstName} ${info.lastName}`.trim();
+          await this.notificationsService.createForProfessionalNote({
+            noteId: note.id,
+            groupId: group.id,
+            memberUserIds: Array.from(ids),
+            payload: { professionalName, dependentName, dependentId: patientId, excerpt },
+          });
+          await this.groupEventsService.log({
+            groupId: group.id,
+            actorUserId: professionalId,
+            action: GroupEventAction.PROFESSIONAL_NOTE,
+            // Como el vínculo: fila simple en el historial, sin desplegable.
+            targetType: GroupEventTargetType.MEMBER,
+            targetId: professionalId,
+            payload: { professionalName, dependentName, noteId: note.id, excerpt },
+          });
+        }
+      } else {
+        await this.notificationsService.createForProfessionalNote({
+          noteId: note.id,
+          groupId: null,
+          memberUserIds: [patientId],
+          payload: { professionalName, excerpt },
+        });
+      }
+    } catch (err) {
+      console.error('Error avisando la indicación:', err?.message || err);
+    }
+
+    return this.toNoteResponse(note);
+  }
+
+  /** Las indicaciones que este profesional le dejó al paciente. */
+  async getPatientNotes(
+    professionalId: number,
+    patientId: number,
+    patientType: string,
+  ) {
+    await this.assertAcceptedLink(professionalId, patientId, patientType);
+    const notes = await this.professionalNoteRepository.find({
+      where: { professionalId, patientId, patientType },
+      relations: { professional: true },
+      order: { createdAt: 'DESC' },
+    });
+    return notes.map((n) => this.toNoteResponse(n));
+  }
+
+  /**
+   * Lado paciente: las indicaciones recibidas por el propio usuario o, con
+   * `dependentId`, por el dependiente de un grupo al que pertenece.
+   */
+  async getReceivedNotes(userId: number, dependentId?: number) {
+    if (dependentId) {
+      await this.assertBelongsToDependentGroup(userId, dependentId);
+    }
+    const notes = await this.professionalNoteRepository.find({
+      where: dependentId
+        ? { patientId: dependentId, patientType: 'dependent' }
+        : { patientId: userId, patientType: 'user' },
+      relations: { professional: true },
+      order: { createdAt: 'DESC' },
+    });
+    return notes.map((n) => this.toNoteResponse(n));
+  }
+
+  /**
+   * Agenda del profesional: turnos que le sacaron, sólo de pacientes con
+   * vínculo aceptado (un turno no le da acceso a nada por sí solo).
+   */
+  async getAgenda(professionalId: number, from?: string, to?: string) {
+    const start = from ? new Date(from) : startOfDay(new Date());
+    const end = to ? new Date(to) : addDays(start, AGENDA_DEFAULT_DAYS);
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      throw new BadRequestException('Las fechas del rango no son válidas');
+    }
+    if (end < start) {
+      throw new BadRequestException('La fecha final es anterior a la inicial');
+    }
+
+    const links = await this.patientProfessionalRepository.find({
+      where: { professionalId, status: PatientProfessionalStatus.ACCEPTED },
+    });
+    const linked = new Set(links.map((l) => `${l.patientType}:${l.patientId}`));
+    if (!linked.size) return [];
+
+    const appointments = await this.appointmentRepository.find({
+      where: {
+        professional: { id: professionalId },
+        status: Not(EventStatus.CANCELED),
+        date: Between(start, end),
+      },
+      order: { date: 'ASC' },
+    });
+
+    const patientKey = (a: Appointment) =>
+      `${a.createdByType === 'dependent' ? 'dependent' : 'user'}:${a.createdById}`;
+    const visible = appointments.filter((a) => linked.has(patientKey(a)));
+
+    const names = new Map<string, string>();
+    for (const key of new Set(visible.map(patientKey))) {
+      const [type, id] = key.split(':');
+      const { info } = await this.getPatientBasics(Number(id), type).catch(() => ({
+        info: null,
+      }));
+      names.set(key, info ? `${info.firstName} ${info.lastName}`.trim() : 'Paciente');
+    }
+
+    return visible.map((a) => {
+      const key = patientKey(a);
+      const isDependent = key.startsWith('dependent:');
+      return {
+        id: a.id,
+        date: a.date,
+        description: a.description,
+        status: a.status,
+        patientId: a.createdById,
+        patientType: isDependent ? 'dependent' : 'user',
+        patientName: names.get(key),
+        isDependent,
+      };
+    });
   }
 }
