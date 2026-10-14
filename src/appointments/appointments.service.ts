@@ -96,7 +96,9 @@ export class AppointmentsService {
       },
       where: {
         createdById: user.id,
-        createdByType: 'user',
+        // Un profesional también tiene eventos propios y se guardan como
+        // 'professional': con 'user' fijo no le aparecían.
+        createdByType: this.getCreatorType(user),
       },
       relations: {
         myProfessional: true,
@@ -157,7 +159,9 @@ export class AppointmentsService {
       },
       where: {
         createdById: user.id,
-        createdByType: 'user',
+        // Un profesional también tiene eventos propios y se guardan como
+        // 'professional': con 'user' fijo no le aparecían.
+        createdByType: this.getCreatorType(user),
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
         date: sinceStartOfToday(),
       },
