@@ -17,6 +17,8 @@ Todas las cuentas sembradas usan la misma contraseña: **`Sigsa2026!`**
 | Integrante (se hace cargo) | Lucía Gutiérrez | `lucia.gutierrez@sigsa.demo` | `Sigsa2026!` |
 | Integrante | Martín Gutiérrez | `martin.gutierrez@sigsa.demo` | `Sigsa2026!` |
 | **Profesional** | Dr. Julián Ferreyra | `julian.ferreyra@sigsa.demo` | `Sigsa2026!` |
+| **Cuenta Prueba** | Milagros Coppola | `milicounvm@gmail.com` | `Sigsa2026!` |
+
 
 > La cuenta de administración **no sirve para la app móvil**, y ninguna cuenta de
 > la app entra al backoffice. La columna `role` guarda un solo valor, así que una

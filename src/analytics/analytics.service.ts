@@ -132,6 +132,28 @@ export class AnalyticsService {
     };
   }
 
+  async getTopMeds(from: Date, to: Date) {
+    // Medicamentos con más recordatorios creados en el período. Un tratamiento
+    // periódico guarda una fila por toma, así que se cuenta una vez por
+    // `seriesId`: si no, un "cada 8 hs durante 10 días" pesaría como 30.
+    const rows = await this.mevRepo
+      .createQueryBuilder('e')
+      .innerJoin('e.med', 'm')
+      .where('e.createdAt BETWEEN :from AND :to', { from, to })
+      .select('m.name', 'name')
+      .addSelect('COUNT(DISTINCT COALESCE("e"."seriesId"::text, "e"."id"::text))', 'count')
+      .groupBy('m.id')
+      .addGroupBy('m.name')
+      .orderBy('count', 'DESC')
+      .limit(5)
+      .getRawMany<{ name: string; count: string }>();
+
+    return {
+      labels: rows.map((r) => r.name),
+      counts: rows.map((r) => parseInt(r.count, 10)),
+    };
+  }
+
   async getFamilyGroupsDistribution(from: Date, to: Date) {
     const groups = await this.fgRepo.find({
       where: { createdAt: Between(from, to) },

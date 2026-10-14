@@ -90,6 +90,12 @@ export class AnalyticsController {
     return this.analyticsService.getTopSpecializations(from, to);
   }
 
+  @Get('top-meds')
+  getTopMeds(@Query('from') fromStr?: string, @Query('to') toStr?: string) {
+    const { from, to } = parseRange(fromStr, toStr);
+    return this.analyticsService.getTopMeds(from, to);
+  }
+
   @Get('family-groups-distribution')
   getFamilyGroupsDistribution(@Query('from') fromStr?: string, @Query('to') toStr?: string) {
     const { from, to } = parseRange(fromStr, toStr);

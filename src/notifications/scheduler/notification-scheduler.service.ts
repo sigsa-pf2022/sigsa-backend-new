@@ -13,6 +13,9 @@ import { titleCase } from '../utils/title-case';
 export class NotificationSchedulerService {
   private readonly logger = new Logger(NotificationSchedulerService.name);
 
+  /** Evita que dos barridos se pisen y manden la misma push dos veces. */
+  private dispatching = false;
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepo: Repository<Notification>,
@@ -22,11 +25,30 @@ export class NotificationSchedulerService {
   ) {}
 
   /**
-   * Corre cada minuto: toma notificaciones CREATED cuya ventana (scheduledFor - leadMinutes) ya pasó.
+   * Corre cada 5 segundos: toma notificaciones CREATED cuya ventana (scheduledFor - leadMinutes) ya pasó.
    * Envía push a recipients PENDING y marca delivered.
+   *
+   * ▼▼▼ DEMO — REVERTIR DESPUÉS ▼▼▼
+   * Cada minuto, lo que se creaba ya dentro de la ventana esperaba hasta el
+   * próximo minuto en punto (hasta 60 s). Con 5 s llega casi al toque.
+   * Para volver atrás: @Cron(CronExpression.EVERY_MINUTE).
+   * ▲▲▲ DEMO — REVERTIR DESPUÉS ▲▲▲
+   *
+   * Si un barrido tarda más que el intervalo (FCM lento), el siguiente se
+   * saltea: los dos verían a los mismos recipients PENDING y duplicarían la push.
    */
-  @Cron(CronExpression.EVERY_MINUTE)
+  @Cron('*/5 * * * * *')
   async dispatchDueNotifications() {
+    if (this.dispatching) return;
+    this.dispatching = true;
+    try {
+      await this.dispatchBatch();
+    } finally {
+      this.dispatching = false;
+    }
+  }
+
+  private async dispatchBatch() {
     const now = Date.now();
     // Buscar un lote pequeño para no sobrecargar (p.ej. 50 por corrida)
     const candidates = await this.notificationRepo.find({
@@ -120,6 +142,23 @@ export class NotificationSchedulerService {
       };
     }
 
+    // Turno propio (sin grupo): no hay dependiente que nombrar, así que el
+    // título lleva al profesional. Sin esto decía sólo "Turno". 'Profesional'
+    // es el relleno que pone appointments.service cuando no hay ninguno.
+    const professionalName = notification.payload?.professionalName;
+    if (
+      notification.type === 'appointment' &&
+      notification.groupId == null &&
+      professionalName &&
+      professionalName !== 'Profesional'
+    ) {
+      return {
+        title: `Turno con ${titleCase(professionalName)}`,
+        body: notification.payload?.description || 'Recordatorio de turno',
+        data: baseData,
+      };
+    }
+
     const titleBase = notification.type === 'appointment' ? 'Turno' : 'Medicamento';
     const title = `${titleBase}${dep}`;
     // El nombre del medicamento se deja tal cual: lleva unidades ("400mg").
@@ -139,6 +178,8 @@ export class NotificationSchedulerService {
    * FCM exige que todos los valores de `data` sean strings.
    * `actionable` le dice al front si tiene que ofrecer "Me hago cargo":
    * sólo tiene sentido en eventos de un dependiente, es decir con grupo.
+   * `selfAppointment` marca el turno propio, sin grupo: ahí el front ofrece
+   * "Confirmar" / "Cancelar" en lugar de "Me hago cargo".
    */
   private buildData(notification: Notification): Record<string, string> {
     const isGroupEvent =
@@ -150,6 +191,7 @@ export class NotificationSchedulerService {
       type: String(notification.type),
       referenceId: String(notification.referenceId),
       actionable: String(isGroupEvent),
+      selfAppointment: String(notification.type === 'appointment' && notification.groupId == null),
     };
     if (notification.groupId != null) {
       data.groupId = String(notification.groupId);
