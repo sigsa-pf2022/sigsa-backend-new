@@ -423,22 +423,40 @@ export class ProfessionalsService {
     return { patients: accepted, pendingRequests: pending };
   }
 
+  /**
+   * Única puerta de entrada del profesional a los datos de un paciente: tiene
+   * que existir el vínculo y estar aceptado. `patientType` es obligatorio
+   * porque, si llega undefined, TypeORM ignora ese filtro y un vínculo con el
+   * usuario 7 habilitaría también al dependiente 7.
+   */
+  async assertAcceptedLink(
+    professionalId: number,
+    patientId: number,
+    patientType: string,
+  ): Promise<PatientProfessional> {
+    if (patientType !== 'user' && patientType !== 'dependent') {
+      throw new BadRequestException('Falta indicar el tipo de paciente');
+    }
+    const link = await this.patientProfessionalRepository.findOne({
+      where: { professionalId, patientId, patientType },
+    });
+    if (!link) {
+      throw new ForbiddenException('No tiene vínculo con este paciente');
+    }
+    if (link.status !== PatientProfessionalStatus.ACCEPTED) {
+      throw new ForbiddenException(
+        'La vinculación aún no fue aprobada por el responsable',
+      );
+    }
+    return link;
+  }
+
   async getPatientDocuments(
     professionalId: number,
     patientId: number,
     patientType: string,
   ) {
-    const link = await this.patientProfessionalRepository.findOne({
-      where: { professionalId, patientId, patientType },
-    });
-    if (!link) {
-      throw new NotFoundException('No tiene vínculo con este paciente');
-    }
-    if (link.status !== PatientProfessionalStatus.ACCEPTED) {
-      throw new NotFoundException(
-        'La vinculación aún no fue aprobada por el responsable',
-      );
-    }
+    await this.assertAcceptedLink(professionalId, patientId, patientType);
     return this.documentsService.getDocumentsByPatient(patientId, patientType);
   }
 }
