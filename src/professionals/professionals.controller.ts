@@ -98,8 +98,29 @@ export class ProfessionalsController {
   // @UseGuards(RoleGuard(Role.Admin))
   @UseGuards(RoleGuard([Role.User]))
   @Get('')
-  async getProfessionals(@Req() request) {
-    return await this.professionalsService.getProfessionals(request.user.id);
+  async getProfessionals(
+    @Req() request,
+    @Query('search') search?: string,
+    @Query('specializationId') specializationId?: string,
+    @Query('dependentId') dependentId?: string,
+    @Query('page') page?: string,
+    @Query('take') take?: string,
+  ) {
+    const userId = request.user.id;
+    const depId = Number(dependentId) > 0 ? Number(dependentId) : null;
+    if (depId) {
+      await this.professionalsService.assertBelongsToDependentGroup(userId, depId);
+    }
+    return this.professionalsService.searchProfessionals({
+      userId,
+      patient: depId
+        ? { id: depId, type: 'dependent' }
+        : { id: userId, type: 'user' },
+      search,
+      specializationId: Number(specializationId) > 0 ? Number(specializationId) : undefined,
+      page,
+      take,
+    });
   }
   @UseGuards(RoleGuard([Role.Admin]))
   @Get('dashboard')

@@ -1,13 +1,20 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hashSync } from 'bcrypt';
 import { User } from '../users/entities/user.entity';
 import { random } from 'src/users/utils/random-number';
-import { Not, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import {
+  accentInsensitive,
   boolFilter,
   buildWhere,
   paginate,
+  searchText,
   textFilter,
 } from 'src/common/list-query';
 import { CreateMyProfessionalDto } from './dto/create-my-professional.dto';
@@ -68,12 +75,116 @@ export class ProfessionalsService {
     return this.myProfessionalsRepository.find();
   }
 
-  async getProfessionals(withoutId: number) {
-    return this.professionalUserRepository.find({
-      select: { id: true, firstName: true, lastName: true, licenseNumber: true },
-      relations: { specialization: true },
-      where: { id: Not(withoutId) },
+  /**
+   * Buscador de profesionales para sacar un turno. Antes se mandaba la lista
+   * entera y la app filtraba; con miles de profesionales eso no escala.
+   *
+   * Primero van los que ya atienden al paciente (vínculo aceptado con el
+   * usuario o, si el turno es para un dependiente, con el dependiente) y después
+   * el resto por apellido. Se pagina en dos pasos: una consulta trae sólo los
+   * ids de la página, ya ordenados, y otra carga esos profesionales con sus
+   * especialidades. Paginando con el join puesto, la página se cortaría por
+   * filas de especialidad y no por profesional.
+   */
+  async searchProfessionals(params: {
+    userId: number;
+    patient: { id: number; type: 'user' | 'dependent' };
+    search?: string;
+    specializationId?: number;
+    page?: unknown;
+    take?: unknown;
+  }) {
+    const { take, skip } = paginate(params.page, params.take ?? 20);
+
+    const links = await this.patientProfessionalRepository.find({
+      select: { professionalId: true },
+      where: {
+        patientId: params.patient.id,
+        patientType: params.patient.type,
+        status: PatientProfessionalStatus.ACCEPTED,
+      },
     });
+    const linkedIds = links.map((l) => l.professionalId);
+
+    const query = this.professionalUserRepository
+      .createQueryBuilder('p')
+      .where('p.id != :userId', { userId: params.userId });
+
+    const text = searchText(params.search);
+    if (text) {
+      // Nombre y apellido en cualquier orden: "julian ferreyra" o "ferreyra julian".
+      query.andWhere(
+        `(${accentInsensitive("p.firstName || ' ' || p.lastName")} LIKE :text
+          OR ${accentInsensitive("p.lastName || ' ' || p.firstName")} LIKE :text)`,
+        { text: `%${text}%` },
+      );
+    }
+
+    if (params.specializationId) {
+      query.andWhere(
+        `EXISTS (
+          SELECT 1 FROM user_specialization_professionals_specialization ups
+          WHERE ups."userId" = p.id
+            AND ups."professionalsSpecializationId" = :specializationId
+        )`,
+        { specializationId: params.specializationId },
+      );
+    }
+
+    const total = await query.getCount();
+
+    const rows = await query
+      .select('p.id', 'id')
+      .addSelect('CASE WHEN p.id = ANY(:linkedIds) THEN 0 ELSE 1 END', 'rank')
+      // Sin acentos: si no, "Ávila" queda después de "Paz".
+      .addSelect(accentInsensitive('p.lastName'), 'sort_last')
+      .addSelect(accentInsensitive('p.firstName'), 'sort_first')
+      .setParameter('linkedIds', linkedIds)
+      .orderBy('rank', 'ASC')
+      .addOrderBy('sort_last', 'ASC')
+      .addOrderBy('sort_first', 'ASC')
+      .addOrderBy('p.id', 'ASC')
+      .offset(skip)
+      .limit(take)
+      .getRawMany<{ id: number }>();
+
+    const ids = rows.map((r) => Number(r.id));
+    const professionals = ids.length
+      ? await this.professionalUserRepository.find({
+          select: { id: true, firstName: true, lastName: true, licenseNumber: true },
+          relations: { specialization: true },
+          where: { id: In(ids) },
+        })
+      : [];
+    const byId = new Map(professionals.map((p) => [p.id, p]));
+
+    const data = ids
+      .map((id) => byId.get(id))
+      .filter(Boolean)
+      .map((p) => ({
+        id: p.id,
+        firstName: p.firstName,
+        lastName: p.lastName,
+        licenseNumber: p.licenseNumber,
+        specialization: p.specialization,
+        linked: linkedIds.includes(p.id),
+      }));
+
+    return { data, total };
+  }
+
+  /** Sólo quien integra el grupo del dependiente puede sacarle un turno. */
+  async assertBelongsToDependentGroup(userId: number, dependentId: number) {
+    const group = await this.familyGroupsService.findByDependentId(dependentId);
+    if (!group) {
+      throw new NotFoundException('No se encontró el dependiente');
+    }
+    const isMember =
+      group.createdBy?.id === userId ||
+      (group.members || []).some((m) => m.id === userId);
+    if (!isMember) {
+      throw new ForbiddenException('No pertenecés al grupo de este dependiente');
+    }
   }
 
   async getAllProfessionalsSpecializations() {

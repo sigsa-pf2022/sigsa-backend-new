@@ -10,9 +10,13 @@ import { FindOperator, Raw } from 'typeorm';
  * buscando literalmente "%undefined%", que no matchea nada.
  */
 
-/** Acentos que ignoramos al buscar: "mendez" tiene que encontrar a "Méndez". */
-const ACCENTED = 'áàäâãéèëêíìïîóòöôõúùüûñç';
-const PLAIN = 'aaaaaeeeeiiiiooooouuuunc';
+/**
+ * Acentos que ignoramos al buscar: "mendez" tiene que encontrar a "Méndez".
+ * Van también las mayúsculas porque la base usa collation C, y con ella
+ * `lower('Á')` sigue siendo 'Á': "avila" no encontraba a "Ávila".
+ */
+const ACCENTED = 'áàäâãéèëêíìïîóòöôõúùüûñçÁÀÄÂÃÉÈËÊÍÌÏÎÓÒÖÔÕÚÙÜÛÑÇ';
+const PLAIN = 'aaaaaeeeeiiiiooooouuuuncaaaaaeeeeiiiiooooouuuunc';
 
 /** Cada filtro necesita su propio parámetro o el último pisa a los anteriores. */
 let paramCount = 0;
@@ -23,20 +27,32 @@ let paramCount = 0;
  * con `translate` (no hace falta la extensión unaccent) y en JS normalizando.
  */
 export function textFilter(value?: unknown): FindOperator<string> | undefined {
-  const text = String(value ?? '').trim();
-  if (!text || text === 'undefined' || text === 'null') return undefined;
-
-  const plain = text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+  const plain = searchText(value);
+  if (!plain) return undefined;
   const param = `filter_${++paramCount}`;
 
   return Raw(
-    (column) =>
-      `translate(lower(${column}), '${ACCENTED}', '${PLAIN}') LIKE :${param}`,
+    (column) => `${accentInsensitive(column)} LIKE :${param}`,
     { [param]: `%${plain}%` },
   );
+}
+
+/**
+ * El texto de búsqueda en minúsculas y sin acentos, o undefined si no hay nada
+ * que buscar. Para las consultas armadas a mano con QueryBuilder.
+ */
+export function searchText(value?: unknown): string | undefined {
+  const text = String(value ?? '').trim();
+  if (!text || text === 'undefined' || text === 'null') return undefined;
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Expresión SQL de `expr` en minúsculas y sin acentos, para comparar con LIKE. */
+export function accentInsensitive(expr: string): string {
+  return `translate(lower(${expr}), '${ACCENTED}', '${PLAIN}')`;
 }
 
 /** Los checkboxes viajan como '0' / '1'. */
