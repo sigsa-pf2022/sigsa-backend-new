@@ -15,6 +15,7 @@ import {
   Rng,
   title,
 } from './demo-utils';
+import { FREE_PLAN_LIMITS } from '../../common/plan-limits';
 
 export const DEMO_PASSWORD = 'Sigsa2026!';
 export const OWNER_ID = 1; // Pedro Martinez, la cuenta que se conserva
@@ -736,9 +737,63 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
     bump('indicaciones');
   }
 
+  // ── Pedro al tope del plan gratuito ─────────────────────────────────────
+  // Para mostrar el aviso de límite en vivo: cualquier turno, medicamento,
+  // grupo o profesional propio que intente crear lo rechaza el backend. Arriba
+  // ya se le cargaron 2 grupos, 2 profesionales, 1 turno (Chequeo anual) y 1
+  // tratamiento (Ibuprofeno, activo hoy y mañana); acá se completa hasta el
+  // límite. Sin rng, para no mover el resto del set. Todo lo nuevo queda en el
+  // futuro y con la notificación ya despachada: no dispara push.
+  const extraDeps = [
+    ['Carmen', 'Martínez', '1949-02-14', 'Abuela Carmen'],
+    ['Luis', 'Martínez', '1947-08-30', 'Abuelo Luis'],
+    ['Ana', 'Martínez', '1972-12-03', 'Tía Ana'],
+  ].slice(0, FREE_PLAN_LIMITS.groups - 2);
+  for (let i = 0; i < extraDeps.length; i++) {
+    const [fn, ln, birthday, name] = extraDeps[i];
+    await createGroup(ctx, {
+      name, dependent: { firstName: fn, lastName: ln, dni: `5600000${i}`, bloodType: 'A+', birthday },
+      ownerId: OWNER_ID, memberIds: [], createdAt: daysAgoAt(18 - i, 12),
+    });
+    bump('grupos'); bump('dependientes');
+  }
+
+  const extraMyProfs = [
+    ['Laura', 'Benítez'], ['Diego', 'Castro'], ['Paula', 'Herrera'], ['Federico', 'Rojas'],
+    ['Silvina', 'Medina'], ['Andrés', 'Godoy'], ['Carolina', 'Ríos'], ['Marcelo', 'Acosta'],
+  ].slice(0, FREE_PLAN_LIMITS.myProfessionals - 2);
+  for (const [fn, ln] of extraMyProfs) {
+    await insert(qr, 'professionals', {
+      first_name: fn, last_name: ln, createdAt: daysAgoAt(22, 12), createdById: OWNER_ID,
+    });
+  }
+
+  const motivos = ['Control anual', 'Consulta', 'Resultados de laboratorio', 'Seguimiento'];
+  for (let i = 0; i < FREE_PLAN_LIMITS.appointments - 1; i++) {
+    const prof = fillProfs[i % fillProfs.length];
+    await createEvent(ctx, {
+      kind: 'appointment', date: addHours(ctx.demoStart, (3 + i) * 24), createdAt: daysAgoAt(2, 10),
+      status: 'created', creator: pedro, professionalId: prof.id, professionalName: prof.name,
+      description: motivos[i % motivos.length],
+    });
+    bump('turnos');
+  }
+
+  const remedios: [number, string][] = [
+    [2, 'Paracetamol 500mg'], [4, 'Omeprazol 20mg'], [5, 'Enalapril 10mg'], [3, 'Amoxicilina 500mg'],
+  ];
+  for (let i = 0; i < FREE_PLAN_LIMITS.meds - 1; i++) {
+    const [medId, medName] = remedios[i % remedios.length];
+    await createEvent(ctx, {
+      kind: 'med_event', date: addHours(ctx.demoStart, (3 + i) * 24 - 1), createdAt: daysAgoAt(2, 10),
+      status: 'created', creator: pedro, medId, medName,
+    });
+    bump('medicamentos');
+  }
+
   title('CUENTAS PARA LA DEMO');
   info(`backoffice     Administración SIGSA  admin@sigsa.demo              ${DEMO_PASSWORD}`);
-  info(`responsable    Pedro Martinez        1999pedromartinez@gmail.com   (tu contraseña actual)`);
+  info(`responsable    Pedro Martinez        1999pedromartinez@gmail.com   (tu contraseña actual, al tope del plan gratuito)`);
   info(`integrante     Lucía Gutiérrez       lucia.gutierrez@sigsa.demo    ${DEMO_PASSWORD}`);
   info(`integrante     Martín Gutiérrez      martin.gutierrez@sigsa.demo   ${DEMO_PASSWORD}`);
   info(`profesional    Dr. Julián Ferreyra   julian.ferreyra@sigsa.demo    ${DEMO_PASSWORD}`);

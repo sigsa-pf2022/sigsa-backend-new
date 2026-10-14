@@ -2,6 +2,11 @@
 import { QueryRunner } from 'typeorm';
 import { bad, count, info, ok, title } from './demo-utils';
 import { OWNER_ID, ROSA_DNI } from './demo-seed';
+import { FREE_PLAN_LIMITS } from '../../common/plan-limits';
+
+/** Mismo criterio de "activo" que el backend: de hoy en adelante y sin resolver. */
+const OWNER_ACTIVE = `"createdById"=$1 AND "createdByType"='user'
+  AND status IN ('created','confirmed') AND date >= DATE_TRUNC('day', LOCALTIMESTAMP)`;
 
 /**
  * Réplica de la ventana que usa el dashboard: los últimos 30 días, con el tope
@@ -67,12 +72,42 @@ export async function verify(qr: QueryRunner): Promise<number> {
       hint: '"Me hago cargo" devolvería 403 sobre esos eventos',
     },
     {
-      label: 'el dueño ve sus dos grupos (innerJoin sobre members)',
+      label: 'el dueño ve sus grupos (innerJoin sobre members)',
       sql: `SELECT count(*)::int AS n FROM family_group fg
               JOIN family_group_members_user m ON m."familyGroupId"=fg.id AND m."userId"=$1`,
       params: [OWNER_ID],
-      expect: (n) => n === 2,
+      expect: (n) => n === FREE_PLAN_LIMITS.groups,
       hint: 'si el creador no está en members, la app no muestra el grupo',
+    },
+    // El dueño queda justo en cada límite: lo próximo que cree muestra el aviso.
+    {
+      label: 'el dueño está al tope de grupos del plan gratuito',
+      sql: `SELECT count(*)::int AS n FROM family_group WHERE "createdById"=$1`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.groups,
+      hint: 'crear un grupo no mostraría el aviso de límite',
+    },
+    {
+      label: 'el dueño está al tope de "Mis profesionales"',
+      sql: `SELECT count(*)::int AS n FROM professionals WHERE "createdById"=$1`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.myProfessionals,
+      hint: 'crear un profesional no mostraría el aviso de límite',
+    },
+    {
+      label: 'el dueño está al tope de turnos activos',
+      sql: `SELECT count(*)::int AS n FROM appointment WHERE ${OWNER_ACTIVE}`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.appointments,
+      hint: 'crear un turno no mostraría el aviso de límite',
+    },
+    {
+      label: 'el dueño está al tope de medicamentos activos',
+      sql: `SELECT count(DISTINCT COALESCE("seriesId"::text, id::text))::int AS n
+              FROM med_event WHERE ${OWNER_ACTIVE}`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.meds,
+      hint: 'crear un medicamento no mostraría el aviso de límite (el Ibuprofeno sólo dura hoy y mañana)',
     },
     {
       label: 'la dependiente de la demo NO está vinculada a ningún profesional',
