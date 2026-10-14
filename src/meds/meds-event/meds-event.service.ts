@@ -18,6 +18,7 @@ import { In, Not, Repository } from 'typeorm';
 import { sinceStartOfToday, UPCOMING_FETCH_LIMIT } from 'src/events/utils/upcoming-window';
 import { Meds } from '../meds/meds.entity';
 import { randomUUID } from 'crypto';
+import { assertFreePlanLimit, FREE_PLAN_LIMITS } from 'src/common/plan-limits';
 import { CreateMedEventDto, MAX_DOSES_PER_TREATMENT } from './dto/create-med-event.dto';
 import { MedEvent } from './med-event.entity';
 
@@ -102,6 +103,24 @@ export class MedsEventService {
     } else {
       return 'user';
     }
+  }
+
+  /**
+   * Tope de medicamentos activos del plan gratuito, contado por creador. Un
+   * tratamiento cuenta una sola vez, no una por toma.
+   */
+  async assertMedsLimit(creator: User | Dependent, premium: boolean) {
+    const activeDoses = await this.medEventRepository.find({
+      select: { id: true, seriesId: true },
+      where: {
+        createdById: creator.id,
+        createdByType: this.getCreatorType(creator),
+        status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
+        date: sinceStartOfToday(),
+      },
+    });
+    const active = new Set(activeDoses.map((e) => e.seriesId ?? `single-${e.id}`)).size;
+    assertFreePlanLimit(premium, active, FREE_PLAN_LIMITS.meds, 'medicamentos activos');
   }
 
   getMedsEventsByUser(user: User) {

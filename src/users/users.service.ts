@@ -104,6 +104,9 @@ export class UsersService {
     });
     newUser.verificationCode = random();
     newUser.role = Role.User;
+    // El ValidationPipe del alta no tiene whitelist: sin esto alguien podría
+    // registrarse mandando `premium: true`.
+    newUser.premium = false;
     const user = await this.normalUserRepository.save(newUser);
     return this.normalUserRepository.save(user);
   }

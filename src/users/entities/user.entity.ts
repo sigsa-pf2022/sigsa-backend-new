@@ -48,6 +48,10 @@ export class User {
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;
 
+  /** Saltea los límites del plan gratuito (ver `common/plan-limits.ts`). */
+  @Column({ default: false })
+  premium: boolean;
+
   /**
    * Foto de perfil como data URI ("data:image/jpeg;base64,..."), igual que los
    * documentos guardan su contenido en base64. El front la reescala a 256px

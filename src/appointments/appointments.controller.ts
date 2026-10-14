@@ -164,7 +164,9 @@ export class AppointmentsController {
           );
         }
       }
-      
+
+      await this.appoinmentsService.assertAppointmentsLimit(creator, user.premium);
+
       let appointment: Appointment;
       if (createAppointmentDto.myProfessional) {
         const myProfessional: Professionals =
@@ -202,6 +204,7 @@ export class AppointmentsController {
       };
       return { status: HttpStatus.CREATED, appointment: appt };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
           message: 'No se pudo crear el turno',

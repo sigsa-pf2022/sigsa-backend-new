@@ -18,6 +18,7 @@ import {
   searchText,
   textFilter,
 } from 'src/common/list-query';
+import { assertFreePlanLimit, FREE_PLAN_LIMITS } from 'src/common/plan-limits';
 import { CreateMyProfessionalDto } from './dto/create-my-professional.dto';
 import { CreateProfessionalSpecializationDto } from './dto/create-professional-specialization.dto';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
@@ -93,6 +94,15 @@ export class ProfessionalsService {
     createMyProfessionalDto: CreateMyProfessionalDto,
     user: User,
   ): Promise<Professionals> {
+    const current = await this.myProfessionalsRepository.count({
+      where: { createdBy: { id: user.id } },
+    });
+    assertFreePlanLimit(
+      user.premium,
+      current,
+      FREE_PLAN_LIMITS.myProfessionals,
+      'profesionales en "Mis profesionales"',
+    );
     const newProfessional = this.myProfessionalsRepository.create({
       createdBy: user,
       ...createMyProfessionalDto,

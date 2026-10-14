@@ -57,6 +57,7 @@ export class ProfessionalsController {
         );
       return { status: HttpStatus.CREATED, id: newMyProfessional.id };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
           message: 'No se pudo crear el profesional',

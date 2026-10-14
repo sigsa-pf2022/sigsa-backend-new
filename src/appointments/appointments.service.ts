@@ -20,6 +20,7 @@ import { Dependent } from 'src/family-groups/entities/dependent.entity';
 import { In, Not, Repository } from 'typeorm';
 import { sinceStartOfToday, UPCOMING_FETCH_LIMIT } from 'src/events/utils/upcoming-window';
 import { sortByRelevance } from 'src/events/utils/sort-by-relevance';
+import { assertFreePlanLimit, FREE_PLAN_LIMITS } from 'src/common/plan-limits';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 
@@ -42,6 +43,19 @@ export class AppointmentsService {
     } else {
       return 'user';
     }
+  }
+
+  /** Tope de turnos activos del plan gratuito, contado por creador. */
+  async assertAppointmentsLimit(creator: User | Dependent, premium: boolean) {
+    const active = await this.appointmentRepository.count({
+      where: {
+        createdById: creator.id,
+        createdByType: this.getCreatorType(creator),
+        status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
+        date: sinceStartOfToday(),
+      },
+    });
+    assertFreePlanLimit(premium, active, FREE_PLAN_LIMITS.appointments, 'turnos activos');
   }
 
   createAppointmentWithProfessionalUser(

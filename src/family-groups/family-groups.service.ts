@@ -17,6 +17,7 @@ import { NotificationsService } from 'src/notifications/notifications.service';
 import { GroupEventsService } from 'src/group-events/group-events.service';
 import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
 import { titleCase } from 'src/notifications/utils/title-case';
+import { assertFreePlanLimit, FREE_PLAN_LIMITS } from 'src/common/plan-limits';
 
 @Injectable()
 export class FamilyGroupsService {
@@ -40,6 +41,11 @@ export class FamilyGroupsService {
     user: User,
     members: User[],
   ) {
+    // Antes de crear el dependiente, para no dejarlo huérfano si se rechaza.
+    const current = await this.familyGroupRepository.count({
+      where: { createdBy: { id: user.id } },
+    });
+    assertFreePlanLimit(user.premium, current, FREE_PLAN_LIMITS.groups, 'grupos');
     const newDependent = await this.createDependent(createDependentDto);
     const newFamilyGroup = this.familyGroupRepository.create({
       name,

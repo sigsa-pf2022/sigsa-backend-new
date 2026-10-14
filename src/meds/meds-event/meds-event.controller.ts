@@ -58,6 +58,7 @@ export class MedsEventController {
   ) {
     try {
       const user = await this.userService.getUserById(req.user.id);
+      await this.medsEventService.assertMedsLimit(user, user.premium);
       const medEvent: MedEvent = await this.medsEventService.createMedEvent(
         user,
         createMedEventDto,
@@ -196,6 +197,9 @@ export class MedsEventController {
           HttpStatus.NOT_FOUND,
         );
       }
+      // El premium es del usuario logueado, que es quien carga el recordatorio.
+      const user = await this.userService.getUserById(req.user.id);
+      await this.medsEventService.assertMedsLimit(dependent, user?.premium);
       const medEvent: MedEvent = await this.medsEventService.createMedEvent(
         dependent,
         createMedEventDto,
