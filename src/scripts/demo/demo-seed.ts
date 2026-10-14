@@ -282,7 +282,9 @@ async function createDocument(
     title: o.title,
     description: null,
     fileContent: PDF_B64,
-    fileName: `${o.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}.pdf`,
+    // \p{L} y no a-z: con a-z las letras con tilde se volvían guiones
+    // ("Ecografía" → "ecograf-a.pdf").
+    fileName: `${o.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '')}.pdf`,
     mimeType: o.mime ?? 'application/pdf',
     fileSize: PDF_B64.length,
     documentDate: o.date,
