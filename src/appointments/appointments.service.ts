@@ -19,6 +19,7 @@ import { User } from 'src/users/entities/user.entity';
 import { Dependent } from 'src/family-groups/entities/dependent.entity';
 import { In, Not, Repository } from 'typeorm';
 import { sinceStartOfToday, UPCOMING_FETCH_LIMIT } from 'src/events/utils/upcoming-window';
+import { sortByRelevance } from 'src/events/utils/sort-by-relevance';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 
@@ -80,8 +81,8 @@ export class AppointmentsService {
     return saved;
   }
 
-  getAppointmentsByUser(user: User) {
-    return this.appointmentRepository.find({
+  async getAppointmentsByUser(user: User) {
+    const appointments = await this.appointmentRepository.find({
       select: {
         professional: {
           id: true,
@@ -108,10 +109,12 @@ export class AppointmentsService {
         date: 'DESC',
       },
     });
+    // Próximos primero y después los pasados (ver sortByRelevance).
+    return sortByRelevance(appointments);
   }
 
-  getAppointmentsByDependent(dependent: Dependent) {
-    return this.appointmentRepository.find({
+  async getAppointmentsByDependent(dependent: Dependent) {
+    const appointments = await this.appointmentRepository.find({
       select: {
         professional: {
           id: true,
@@ -141,6 +144,8 @@ export class AppointmentsService {
         date: 'DESC',
       },
     });
+    // Próximos primero y después los pasados (ver sortByRelevance).
+    return sortByRelevance(appointments);
   }
 
   getNextAppointmentsByUser(user: User) {
