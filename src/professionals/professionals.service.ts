@@ -387,34 +387,32 @@ export class ProfessionalsService {
       return saved;
     }
 
-    // patientType === 'user': vínculo directo, status ACCEPTED por defecto
+    // patientType === 'user': igual que con un dependiente, queda pendiente
+    // hasta que el propio paciente la acepta (ver acceptProfessionalRequest).
     const link = this.patientProfessionalRepository.create({
       professionalId,
       patientId: dto.patientId,
       patientType: dto.patientType,
+      status: PatientProfessionalStatus.PENDING,
     });
     const savedLink = await this.patientProfessionalRepository.save(link);
 
-    // A diferencia del dependiente, acá no hay autorización de por medio: el
-    // vínculo queda hecho al instante. Al menos se le avisa a la persona, que
-    // si no se enteraría recién al ver al profesional en su lista.
     try {
       const professional = await this.professionalUserRepository.findOne({
         where: { id: professionalId },
       });
-      await this.notificationsService.createForProfessionalLinked({
+      await this.notificationsService.createForProfessionalLinkRequest({
         patientProfessionalId: savedLink.id,
-        patientUserId: dto.patientId,
+        memberUserIds: [dto.patientId],
         payload: {
           professionalName: professional
             ? `${professional.firstName} ${professional.lastName}`.trim()
             : 'Un profesional',
-          licenseNumber: professional?.licenseNumber ?? null,
         },
       });
     } catch (err) {
-      // El aviso no puede tumbar la vinculación en sí.
-      console.error('Error avisando al paciente de la vinculación:', err?.message || err);
+      // El aviso no puede tumbar la solicitud en sí.
+      console.error('Error avisando al paciente de la solicitud:', err?.message || err);
     }
 
     return savedLink;
@@ -724,7 +722,8 @@ export class ProfessionalsService {
             // Como el vínculo: fila simple en el historial, sin desplegable.
             targetType: GroupEventTargetType.MEMBER,
             targetId: professionalId,
-            payload: { professionalName, dependentName, noteId: note.id, excerpt },
+            // El texto completo, para poder desplegarlo en el historial.
+            payload: { professionalName, dependentName, noteId: note.id, excerpt, content },
           });
         }
       } else {
