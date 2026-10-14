@@ -162,6 +162,16 @@ export async function verify(qr: QueryRunner): Promise<number> {
       hint: 'la pestaña Indicaciones de la ficha arrancaría vacía',
     },
     {
+      label: 'hay una paciente titular con indicaciones en su perfil',
+      sql: `SELECT count(*)::int AS n FROM professional_notes n
+              JOIN patient_professional pp ON pp."patientId" = n."patientId"
+               AND pp."patientType" = 'user' AND pp.status = 'ACCEPTED'
+               AND pp.professional_id = n.professional_id
+             WHERE n."patientType" = 'user'`,
+      expect: (n) => n >= 2,
+      hint: '"Indicaciones de mis profesionales" se vería vacía con cualquier cuenta',
+    },
+    {
       label: 'hay tomas pasadas sin marcar para mostrar adherencia baja',
       sql: `SELECT count(*)::int AS n FROM med_event e
               JOIN patient_professional pp ON pp."patientId" = e."createdById"

@@ -731,8 +731,41 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
       groupId: osvaldo.group.id, actorUserId: ferreyra, action: 'professional_note',
       targetType: 'member', targetId: ferreyra,
       payload: JSON.stringify({ professionalName: 'Julián Ferreyra', dependentName: osvaldo.creator.name,
-        noteId, excerpt }),
+        noteId, excerpt, content }),
       createdAt,
+    });
+    bump('indicaciones');
+  }
+
+  // Lucía como paciente titular de Ferreyra, para ver "Indicaciones de mis
+  // profesionales" desde su perfil. No se usa la cuenta de Pedro: queda libre
+  // para mostrar en vivo la solicitud que el titular tiene que aceptar.
+  const luciaLinkAt = daysAgoAt(12, 11);
+  await insert(qr, 'patient_professional', {
+    professional_id: ferreyra, patientId: lucia, patientType: 'user',
+    createdAt: luciaLinkAt, status: 'ACCEPTED', resolvedAt: addHours(luciaLinkAt, 3),
+  });
+  bump('vinculaciones');
+  const luciaNotes: [number, string][] = [
+    [8, 'Los análisis salieron bien. Repetimos el control de colesterol en tres meses, en ayunas de 12 horas.'],
+    [2, 'Caminar al menos 30 minutos por día y reducir la sal en las comidas. Lo revisamos en el próximo control.'],
+  ];
+  for (const [daysAgo, content] of luciaNotes) {
+    const createdAt = daysAgoAt(daysAgo, 17);
+    const noteId = await insert(qr, 'professional_notes', {
+      professional_id: ferreyra, patientId: lucia, patientType: 'user', content, createdAt,
+    });
+    const excerpt = content.length > 120 ? `${content.slice(0, 117)}...` : content;
+    // Sin grupo: la notificación va sólo a ella y no hay historial de grupo.
+    const notificationId = await insert(qr, 'notifications', {
+      type: 'professional_note', referenceId: noteId, groupId: null,
+      scheduledFor: createdAt, leadMinutes: 0, status: 'sent',
+      payload: JSON.stringify({ professionalName: 'Julián Ferreyra', excerpt }),
+      createdAt, updatedAt: createdAt,
+    });
+    await insert(qr, 'notification_recipients', {
+      notificationId, userId: lucia, status: 'delivered', action: null,
+      deliveredAt: createdAt, respondedAt: null, createdAt,
     });
     bump('indicaciones');
   }
@@ -794,7 +827,7 @@ export async function seedDemo(qr: QueryRunner, opts: { demoStart: Date; seed: n
   title('CUENTAS PARA LA DEMO');
   info(`backoffice     Administración SIGSA  admin@sigsa.demo              ${DEMO_PASSWORD}`);
   info(`responsable    Pedro Martinez        1999pedromartinez@gmail.com   (tu contraseña actual, al tope del plan gratuito)`);
-  info(`integrante     Lucía Gutiérrez       lucia.gutierrez@sigsa.demo    ${DEMO_PASSWORD}`);
+  info(`integrante     Lucía Gutiérrez       lucia.gutierrez@sigsa.demo    ${DEMO_PASSWORD}   (paciente de Ferreyra, con indicaciones)`);
   info(`integrante     Martín Gutiérrez      martin.gutierrez@sigsa.demo   ${DEMO_PASSWORD}`);
   info(`profesional    Dr. Julián Ferreyra   julian.ferreyra@sigsa.demo    ${DEMO_PASSWORD}`);
   info(`\n  dependiente de la demo: Rosa Gutiérrez, DNI ${ROSA_DNI} (sin vincular)`);
