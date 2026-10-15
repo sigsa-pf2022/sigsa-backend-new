@@ -73,6 +73,14 @@ export class AppointmentsController {
         id: a.id,
         status: a.status,
         description: a.description,
+        // El service ya trae la relación, pero este map la descartaba: en el
+        // listado del grupo nunca aparecía "X se hizo cargo" y otro integrante
+        // tenía que entrar al detalle para enterarse de que ya estaba tomado.
+        takenChargeByUserId: a.takenChargeByUserId,
+        takenChargeBy: a.takenChargeBy,
+        takenChargeAt: a.takenChargeAt,
+        canceledBy: a.canceledBy,
+        canceledAt: a.canceledAt,
       };
     });
     return appointments;
@@ -82,18 +90,42 @@ export class AppointmentsController {
   async getAppointment(@Param('id', ParseIntPipe) id: number) {
     const appointment = await this.appoinmentsService.getAppointmentById(id);
     return {
+      // El id lo necesita la vista para "Me hago cargo"; el estado, para el badge.
+      id: appointment.id,
       professional: appointment.myProfessional
         ? appointment.myProfessional
         : appointment.professional,
       isMyProfessional: appointment.myProfessional ? true : false,
       date: appointment.date,
       description: appointment.description,
+      status: appointment.status,
+      takenChargeByUserId: appointment.takenChargeByUserId,
+      takenChargeBy: appointment.takenChargeBy,
+      takenChargeAt: appointment.takenChargeAt,
+      canceledBy: appointment.canceledBy,
+      canceledAt: appointment.canceledAt,
     };
   }
 
   @Delete('/cancel/:id')
   cancelAppointment(@Request() req) {
-    return this.appoinmentsService.cancelAppointment(req.params.id);
+    // El id del que cancela va al historial del grupo.
+    return this.appoinmentsService.cancelAppointment(
+      Number(req.params.id),
+      Number(req.user.id),
+    );
+  }
+
+  /**
+   * Borrado real, para el turno cargado por error. Distinto de `/cancel/:id`,
+   * que sólo cambia el estado y deja el turno a la vista.
+   */
+  @Delete('/:id')
+  deleteAppointment(@Request() req) {
+    return this.appoinmentsService.deleteAppointment(
+      Number(req.params.id),
+      Number(req.user.id),
+    );
   }
 
   @Put('/confirm/:id')
@@ -132,7 +164,9 @@ export class AppointmentsController {
           );
         }
       }
-      
+
+      await this.appoinmentsService.assertAppointmentsLimit(creator, user.premium);
+
       let appointment: Appointment;
       if (createAppointmentDto.myProfessional) {
         const myProfessional: Professionals =
@@ -144,6 +178,7 @@ export class AppointmentsController {
             createAppointmentDto,
             creator,
             myProfessional,
+            Number(req.user.id),
           );
       } else {
         const professional: ProfessionalUser =
@@ -155,6 +190,7 @@ export class AppointmentsController {
             createAppointmentDto,
             creator,
             professional,
+            Number(req.user.id),
           );
       }
       
@@ -168,6 +204,7 @@ export class AppointmentsController {
       };
       return { status: HttpStatus.CREATED, appointment: appt };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
           message: 'No se pudo crear el turno',

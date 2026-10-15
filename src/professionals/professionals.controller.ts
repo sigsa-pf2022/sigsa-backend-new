@@ -26,6 +26,8 @@ import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
 import { CreatePatientProfessionalDto } from './dto/create-patient-professional.dto';
+import { CreateProfessionalNoteDto } from './dto/create-professional-note.dto';
+import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { CreateProfessionalSpecializationDto } from './dto/create-professional-specialization.dto';
 import { CreateProfessionalDto } from './dto/create-professional.dto';
 import { Professionals } from './entities/my-professional.entity';
@@ -55,6 +57,7 @@ export class ProfessionalsController {
         );
       return { status: HttpStatus.CREATED, id: newMyProfessional.id };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
           message: 'No se pudo crear el profesional',
@@ -98,9 +101,31 @@ export class ProfessionalsController {
   // @UseGuards(RoleGuard(Role.Admin))
   @UseGuards(RoleGuard([Role.User]))
   @Get('')
-  async getProfessionals(@Req() request) {
-    return await this.professionalsService.getProfessionals(request.user.id);
+  async getProfessionals(
+    @Req() request,
+    @Query('search') search?: string,
+    @Query('specializationId') specializationId?: string,
+    @Query('dependentId') dependentId?: string,
+    @Query('page') page?: string,
+    @Query('take') take?: string,
+  ) {
+    const userId = request.user.id;
+    const depId = Number(dependentId) > 0 ? Number(dependentId) : null;
+    if (depId) {
+      await this.professionalsService.assertBelongsToDependentGroup(userId, depId);
+    }
+    return this.professionalsService.searchProfessionals({
+      userId,
+      patient: depId
+        ? { id: depId, type: 'dependent' }
+        : { id: userId, type: 'user' },
+      search,
+      specializationId: Number(specializationId) > 0 ? Number(specializationId) : undefined,
+      page,
+      take,
+    });
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('dashboard')
   async getProfessionalsDashboard(@Req() request) {
     console.log('profesionales');
@@ -112,6 +137,7 @@ export class ProfessionalsController {
     );
     return { data: res[0], total: res[1], count: res[0].length };
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('specializations')
   async getProfessionalsSpecializations(@Req() request) {
     const res = await this.professionalsService.getProfessionalsSpecializations(
@@ -127,6 +153,7 @@ export class ProfessionalsController {
   async getAllProfessionalsSpecializations() {
     return await this.professionalsService.getAllProfessionalsSpecializations();
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/specializations/:id')
   async getProfessionalsSpecializationById(@Req() request) {
     return await this.professionalsService.getProfessionalsSpecializationById(
@@ -137,6 +164,7 @@ export class ProfessionalsController {
   // From Dashboard
   // @UseGuards(RoleGuard(Role.Admin))
   @UsePipes(ValidationPipe)
+  @UseGuards(RoleGuard([Role.Admin]))
   @Post('/specializations')
   async createSpecialization(
     @Req() request,
@@ -161,6 +189,7 @@ export class ProfessionalsController {
     );
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Put('/specializations/:id')
   async updateSpecialization(@Req() request, @Body() body) {
     return this.professionalsService.updateSpecialization(
@@ -169,6 +198,7 @@ export class ProfessionalsController {
     );
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Put('/specializations/recover/:id')
   async recoverSpecialization(@Req() request) {
     return this.professionalsService.toggleStatusSpecialization(
@@ -177,6 +207,7 @@ export class ProfessionalsController {
     );
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Delete('/specializations/:id')
   async deleteSpecialization(@Req() request) {
     return this.professionalsService.toggleStatusSpecialization(
@@ -237,6 +268,73 @@ export class ProfessionalsController {
   }
 
   @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/agenda')
+  async getAgenda(
+    @Req() request,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.professionalsService.getAgenda(request.user.id, from, to);
+  }
+
+  /** Lado paciente: indicaciones recibidas (propias o de un dependiente). */
+  @UseGuards(JwtAuthGuard)
+  @Get('/notes/received')
+  async getReceivedNotes(
+    @Req() request,
+    @Query('dependentId') dependentId?: string,
+  ) {
+    const depId = Number(dependentId) > 0 ? Number(dependentId) : undefined;
+    return this.professionalsService.getReceivedNotes(request.user.id, depId);
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/patients/:patientId/summary')
+  async getPatientSummary(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Req() request,
+  ) {
+    return this.professionalsService.getPatientSummary(
+      request.user.id,
+      patientId,
+      patientType,
+    );
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Get('/patients/:patientId/notes')
+  async getPatientNotes(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Req() request,
+  ) {
+    return this.professionalsService.getPatientNotes(
+      request.user.id,
+      patientId,
+      patientType,
+    );
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
+  @Post('/patients/:patientId/notes')
+  async createPatientNote(
+    @Param('patientId', ParseIntPipe) patientId: number,
+    @Query('patientType') patientType: string,
+    @Body(new ValidationPipe({ whitelist: true, transform: true }))
+    dto: CreateProfessionalNoteDto,
+    @Req() request,
+  ) {
+    const note = await this.professionalsService.createPatientNote(
+      request.user.id,
+      patientId,
+      patientType,
+      dto.content,
+    );
+    return { status: HttpStatus.CREATED, note };
+  }
+
+  @UseGuards(RoleGuard([Role.Professional]))
   @Get('/patients/:patientId/documents')
   async getPatientDocuments(
     @Param('patientId', ParseIntPipe) patientId: number,
@@ -257,6 +355,7 @@ export class ProfessionalsController {
     }
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/monthly-quantity')
   async getMonthlyUserQuantity() {
     const today = new Date();

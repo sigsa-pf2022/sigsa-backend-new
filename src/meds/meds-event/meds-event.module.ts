@@ -7,6 +7,7 @@ import { Meds } from '../meds/meds.entity';
 import { UsersModule } from 'src/users/users.module';
 import { FamilyGroupsModule } from 'src/family-groups/family-groups.module';
 import { NotificationsModule } from 'src/notifications/notifications.module';
+import { GroupEventsModule } from 'src/group-events/group-events.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { NotificationsModule } from 'src/notifications/notifications.module';
     UsersModule,
     FamilyGroupsModule,
     NotificationsModule,
+    GroupEventsModule,
   ],
   controllers: [MedsEventController],
   providers: [MedsEventService],

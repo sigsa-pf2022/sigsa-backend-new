@@ -31,6 +31,10 @@ export class FamilyGroup {
   @JoinTable()
   members: User[];
 
+  /** Foto del grupo como data URI. Mismo criterio que `User.photo`. */
+  @Column({ type: 'text', nullable: true })
+  photo: string | null;
+
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
 }

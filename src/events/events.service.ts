@@ -3,6 +3,7 @@ import { AppointmentsService } from 'src/appointments/appointments.service';
 import { User } from 'src/users/entities/user.entity';
 import { MedsEventService } from 'src/meds/meds-event/meds-event.service';
 import { Dependent } from 'src/family-groups/entities/dependent.entity';
+import { titleCase } from 'src/notifications/utils/title-case';
 
 type NextEventType = 'medication' | 'appointment';
 
@@ -100,18 +101,27 @@ export class EventsService {
   }
 
   /**
-   * Extract professional name from an appointment
+   * Título del turno en el carrusel de próximos eventos.
+   *
+   * Va con el prefijo "Dr/a" a propósito: la tarjeta muestra sólo este texto,
+   * y sin el prefijo el nombre del profesional se lee como si fuera el del
+   * dependiente. Es el mismo formato que usa la lista de turnos en la app.
    */
   private _getProfessionalName(event: any): string {
     const prof = event?.myProfessional || event?.professional;
     if (!prof) return 'Profesional';
-    const first = prof.firstName || '';
-    const last = prof.lastName || '';
-    return `${first} ${last}`.trim() || 'Profesional';
+    const name = titleCase(`${prof.firstName || ''} ${prof.lastName || ''}`.trim());
+    return name ? `Dr/a ${name}` : 'Profesional';
   }
 
   /**
-   * Combine and sort events by date
+   * Combina turnos y medicamentos poniendo primero lo que todavía no pasó.
+   *
+   * La ventana arranca a las 00:00 de hoy, así que la lista puede traer eventos
+   * de esta mañana ya vencidos. Si ordenáramos por fecha a secas, tres tomas
+   * pasadas se comerían las tres tarjetas del carrusel y el usuario no vería lo
+   * que se viene. Entonces: primero lo pendiente de más cerca a más lejos, y
+   * después lo de hoy que ya pasó, de más reciente a más viejo.
    */
   private _combineAndSortEvents(
     medEvents: Event[],
@@ -125,7 +135,18 @@ export class EventsService {
       .filter(e => e && e.date)
       .map(normalize)
       .filter(e => !isNaN(e.date.getTime()));
-    return allEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    const now = Date.now();
+    const isUpcoming = (e: Event) => e.date.getTime() >= now;
+
+    return allEvents.sort((a, b) => {
+      if (isUpcoming(a) !== isUpcoming(b)) {
+        return isUpcoming(a) ? -1 : 1;
+      }
+      return isUpcoming(a)
+        ? a.date.getTime() - b.date.getTime()
+        : b.date.getTime() - a.date.getTime();
+    });
   }
 
   /**

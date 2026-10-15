@@ -1,7 +1,11 @@
-import { Body, Controller, Delete, Get, HttpException, HttpStatus, Post, Put, Req, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpException, HttpStatus, Post, Put, Req, UseGuards, UsePipes, ValidationPipe } from '@nestjs/common';
 import { CreateMedsTypeDto } from './dto/create-meds-type.dto';
 import { MedsTypeService } from './meds-type.service';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 
+/** Panel de administración: sólo lo consume el backoffice. */
+@UseGuards(RoleGuard([Role.Admin]))
 @Controller('meds-type')
 export class MedsTypeController {
   constructor(private readonly medsTypeService: MedsTypeService) {}
@@ -18,7 +22,7 @@ export class MedsTypeController {
       request.query.name,
       request.query.description,
     );
-    return { data: res[0], total: res[1], count: res[0].length };
+    return { data: res[0], total: res[1], count: res[1] };
   }
 
     // @UseGuards(RoleGuard(Role.Admin))

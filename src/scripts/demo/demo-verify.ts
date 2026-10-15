@@ -1,0 +1,305 @@
+/* eslint-disable no-console */
+import { QueryRunner } from 'typeorm';
+import { bad, count, info, ok, title } from './demo-utils';
+import { OWNER_ID, ROSA_DNI } from './demo-seed';
+import { FREE_PLAN_LIMITS } from '../../common/plan-limits';
+
+/** Mismo criterio de "activo" que el backend: de hoy en adelante y sin resolver. */
+const OWNER_ACTIVE = `"createdById"=$1 AND "createdByType"='user'
+  AND status IN ('created','confirmed') AND date >= DATE_TRUNC('day', LOCALTIMESTAMP)`;
+
+/**
+ * Réplica de la ventana que usa el dashboard: los últimos 30 días, con el tope
+ * al final del día de hoy.
+ */
+function dashboardWindow() {
+  const to = new Date();
+  to.setHours(23, 59, 59, 999);
+  const from = new Date();
+  from.setDate(from.getDate() - 30);
+  from.setHours(0, 0, 0, 0);
+  return { from, to };
+}
+
+type Check = {
+  label: string;
+  sql: string;
+  params?: any[];
+  expect: (n: number) => boolean;
+  hint: string;
+  /** Depende del estado del emulador, no de los datos: avisa pero no bloquea. */
+  warnOnly?: boolean;
+};
+
+export async function verify(qr: QueryRunner): Promise<number> {
+  const { from, to } = dashboardWindow();
+  let failures = 0;
+
+  const checks: Check[] = [
+    {
+      label: 'no hay ráfaga de push al levantar el backend',
+      sql: `SELECT count(*)::int AS n FROM notifications WHERE status='created'
+              AND "scheduledFor" - ("leadMinutes" * INTERVAL '1 minute') <= LOCALTIMESTAMP`,
+      expect: (n) => n === 0,
+      hint: 'hay notificaciones vencidas sin despachar: al arrancar saldrían todas juntas',
+    },
+    // Acá había una invariante que exigía cero turnos en `created` con más de un
+    // día, porque el cron de tasks.service los pasaba a `canceled` y se perdían
+    // de la vista en plena demo. Ese cron se apagó: ahora un turno viejo sin
+    // resolver se queda en `created` y se muestra como VENCIDO, que es lo
+    // esperado. La invariante ya no aplica.
+    {
+      label: 'todo evento de dependiente tiene su notificación',
+      sql: `SELECT (
+              (SELECT count(*) FROM med_event e WHERE e."createdByType"='dependent'
+                 AND NOT EXISTS (SELECT 1 FROM notifications n
+                                  WHERE n.type='medication' AND n."referenceId"=e.id))
+            + (SELECT count(*) FROM appointment a WHERE a."createdByType"='dependent'
+                 AND NOT EXISTS (SELECT 1 FROM notifications n
+                                  WHERE n.type='appointment' AND n."referenceId"=a.id))
+            )::int AS n`,
+      expect: (n) => n === 0,
+      hint: '"Me hago cargo" devolvería 404 sobre esos eventos',
+    },
+    {
+      label: 'el dueño de la demo es destinatario en las notificaciones de sus grupos',
+      sql: `SELECT count(*)::int AS n FROM notifications n
+             WHERE n."groupId" IN (SELECT id FROM family_group WHERE "createdById"=$1)
+               AND NOT EXISTS (SELECT 1 FROM notification_recipients r
+                                WHERE r."notificationId"=n.id AND r."userId"=$1)`,
+      params: [OWNER_ID],
+      expect: (n) => n === 0,
+      hint: '"Me hago cargo" devolvería 403 sobre esos eventos',
+    },
+    {
+      label: 'el dueño ve sus grupos (innerJoin sobre members)',
+      sql: `SELECT count(*)::int AS n FROM family_group fg
+              JOIN family_group_members_user m ON m."familyGroupId"=fg.id AND m."userId"=$1`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.groups,
+      hint: 'si el creador no está en members, la app no muestra el grupo',
+    },
+    // El dueño queda justo en cada límite: lo próximo que cree muestra el aviso.
+    {
+      label: 'el dueño está al tope de grupos del plan gratuito',
+      sql: `SELECT count(*)::int AS n FROM family_group WHERE "createdById"=$1`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.groups,
+      hint: 'crear un grupo no mostraría el aviso de límite',
+    },
+    {
+      label: 'el dueño está al tope de "Mis profesionales"',
+      sql: `SELECT count(*)::int AS n FROM professionals WHERE "createdById"=$1`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.myProfessionals,
+      hint: 'crear un profesional no mostraría el aviso de límite',
+    },
+    {
+      label: 'el dueño está al tope de turnos activos',
+      sql: `SELECT count(*)::int AS n FROM appointment WHERE ${OWNER_ACTIVE}`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.appointments,
+      hint: 'crear un turno no mostraría el aviso de límite',
+    },
+    {
+      label: 'el dueño está al tope de medicamentos activos',
+      sql: `SELECT count(DISTINCT COALESCE("seriesId"::text, id::text))::int AS n
+              FROM med_event WHERE ${OWNER_ACTIVE}`,
+      params: [OWNER_ID],
+      expect: (n) => n === FREE_PLAN_LIMITS.meds,
+      hint: 'crear un medicamento no mostraría el aviso de límite (el Ibuprofeno sólo dura hoy y mañana)',
+    },
+    {
+      label: 'la dependiente de la demo NO está vinculada a ningún profesional',
+      sql: `SELECT count(*)::int AS n FROM patient_professional
+             WHERE "patientType"='dependent'
+               AND "patientId"=(SELECT id FROM dependent WHERE dni=$1)`,
+      params: [ROSA_DNI],
+      expect: (n) => n === 0,
+      hint: 'la vinculación tiene que hacerse en vivo durante la reunión',
+    },
+    {
+      label: 'no hay DNIs de dependiente repetidos',
+      sql: `SELECT count(*)::int AS n FROM (SELECT dni FROM dependent GROUP BY dni HAVING count(*)>1) x`,
+      expect: (n) => n === 0,
+      hint: 'la búsqueda del profesional devolvería más de un resultado',
+    },
+    {
+      label: 'el Dr. Ferreyra no tiene solicitudes pendientes viejas',
+      sql: `SELECT count(*)::int AS n FROM patient_professional
+             WHERE status='PENDING'
+               AND professional_id=(SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')`,
+      expect: (n) => n === 0,
+      hint: 'su bandeja tiene que mostrar sólo la solicitud que se genere en vivo',
+    },
+    {
+      label: 'hay próximos eventos de la dependiente para el carrusel',
+      sql: `SELECT count(*)::int AS n FROM med_event
+             WHERE "createdByType"='dependent'
+               AND "createdById"=(SELECT id FROM dependent WHERE dni=$1)
+               AND status IN ('created','confirmed')
+               AND date >= DATE_TRUNC('day', LOCALTIMESTAMP)`,
+      params: [ROSA_DNI],
+      expect: (n) => n >= 3,
+      hint: 'la pantalla del grupo se vería sin actividad próxima',
+    },
+    {
+      label: 'el Dr. Ferreyra tiene turnos futuros de pacientes vinculados en su agenda',
+      sql: `SELECT count(*)::int AS n FROM appointment a
+              JOIN patient_professional pp
+                ON pp.professional_id = a."professionalId" AND pp.status = 'ACCEPTED'
+               AND pp."patientId" = a."createdById" AND pp."patientType"::text = a."createdByType"::text
+             WHERE a."professionalId" = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')
+               AND a.status <> 'canceled' AND a.date >= LOCALTIMESTAMP`,
+      expect: (n) => n >= 3,
+      hint: 'la agenda del profesional se vería vacía',
+    },
+    {
+      label: 'hay indicaciones de Ferreyra a sus pacientes',
+      sql: `SELECT count(*)::int AS n FROM professional_notes
+             WHERE professional_id = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')`,
+      expect: (n) => n >= 2,
+      hint: 'la pestaña Indicaciones de la ficha arrancaría vacía',
+    },
+    {
+      label: 'hay una paciente titular con indicaciones en su perfil',
+      sql: `SELECT count(*)::int AS n FROM professional_notes n
+              JOIN patient_professional pp ON pp."patientId" = n."patientId"
+               AND pp."patientType" = 'user' AND pp.status = 'ACCEPTED'
+               AND pp.professional_id = n.professional_id
+             WHERE n."patientType" = 'user'`,
+      expect: (n) => n >= 2,
+      hint: '"Indicaciones de mis profesionales" se vería vacía con cualquier cuenta',
+    },
+    {
+      label: 'hay tomas pasadas sin marcar para mostrar adherencia baja',
+      sql: `SELECT count(*)::int AS n FROM med_event e
+              JOIN patient_professional pp ON pp."patientId" = e."createdById"
+               AND pp."patientType" = 'dependent' AND pp.status = 'ACCEPTED'
+               AND pp.professional_id = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')
+             WHERE e."createdByType" = 'dependent' AND e."seriesId" IS NOT NULL
+               AND e.status IN ('created','sended')
+               AND e.date < LOCALTIMESTAMP - INTERVAL '2 hours'`,
+      expect: (n) => n >= 3,
+      hint: 'todas las fichas mostrarían adherencia perfecta',
+    },
+    {
+      label: 'los turnos con Ferreyra dicen "Julián Ferreyra" en la notificación',
+      sql: `SELECT count(*)::int AS n FROM notifications n
+              JOIN appointment a ON a.id = n."referenceId"
+             WHERE n.type = 'appointment'
+               AND a."professionalId" = (SELECT id FROM "user" WHERE email='julian.ferreyra@sigsa.demo')
+               AND n.payload->>'professionalName' <> 'Julián Ferreyra'`,
+      expect: (n) => n === 0,
+      hint: 'el push o el historial nombrarían a otro profesional',
+    },
+    {
+      label: 'los catálogos quedaron intactos',
+      sql: `SELECT ((SELECT count(*) FROM meds)+(SELECT count(*) FROM meds_drug)
+                   +(SELECT count(*) FROM meds_type)+(SELECT count(*) FROM meds_shape)
+                   +(SELECT count(*) FROM meds_measurement_unit)
+                   +(SELECT count(*) FROM professionals_specialization))::int AS n`,
+      expect: (n) => n === 42,
+      hint: 'se esperaban 5+12+5+5+5+10 = 42 filas de catálogo',
+    },
+    {
+      label: 'el dueño conserva su dispositivo registrado',
+      sql: `SELECT count(*)::int AS n FROM notification_device_tokens WHERE "userId"=$1 AND enabled`,
+      params: [OWNER_ID],
+      expect: (n) => n >= 1,
+      hint: 'iniciá sesión con esa cuenta en el teléfono para registrar su token',
+      // El token se asigna a quien haya iniciado sesión en el dispositivo, así
+      // que esto no lo puede arreglar la siembra: avisa, pero no la aborta.
+      warnOnly: true,
+    },
+  ];
+
+  title('INVARIANTES');
+  for (const c of checks) {
+    const n = await count(qr, c.sql, c.params ?? []);
+    if (c.expect(n)) {
+      ok(`${c.label} (${n})`);
+    } else if (c.warnOnly) {
+      info(`\x1b[33m[..]\x1b[0m ${c.label} → ${n}: ${c.hint}`);
+    } else {
+      bad(`${c.label} → ${n}: ${c.hint}`);
+      failures++;
+    }
+  }
+
+  title('LO QUE VA A MOSTRAR EL DASHBOARD');
+  info(`ventana: ${from.toLocaleDateString('es-AR')} 00:00 → ${to.toLocaleDateString('es-AR')} 23:59\n`);
+
+  const [ov] = await qr.query(
+    `SELECT (SELECT count(*) FROM "user" WHERE type='NormalUser' AND "createdAt" BETWEEN $1 AND $2) usuarios,
+            (SELECT count(*) FROM "user" WHERE type='ProfessionalUser' AND "createdAt" BETWEEN $1 AND $2) profesionales,
+            (SELECT count(*) FROM family_group WHERE "createdAt" BETWEEN $1 AND $2) grupos,
+            (SELECT count(*) FROM dependent WHERE "createdAt" BETWEEN $1 AND $2) dependientes,
+            (SELECT count(*) FROM appointment WHERE "createdAt" BETWEEN $1 AND $2) turnos,
+            (SELECT count(*) FROM med_event WHERE "createdAt" BETWEEN $1 AND $2) medicamentos,
+            (SELECT count(*) FROM medical_document WHERE "createdAt" BETWEEN $1 AND $2) documentos,
+            (SELECT count(*) FROM patient_professional WHERE "createdAt" BETWEEN $1 AND $2) vinculaciones,
+            (SELECT count(*) FROM professional_notes WHERE "createdAt" BETWEEN $1 AND $2) indicaciones`,
+    [from, to],
+  );
+  Object.entries(ov).forEach(([k, v]) => info(`  ${k.padEnd(16)} ${v}`));
+  if (Object.values(ov).some((v) => Number(v) === 0)) {
+    bad('algún KPI del resumen queda en cero'); failures++;
+  }
+
+  const dias = await qr.query(
+    `SELECT count(*)::int AS n FROM generate_series($1::date, $2::date, '1 day') d
+      WHERE NOT EXISTS (SELECT 1 FROM appointment WHERE "createdAt"::date = d)
+        AND NOT EXISTS (SELECT 1 FROM med_event WHERE "createdAt"::date = d)
+        AND NOT EXISTS (SELECT 1 FROM medical_document WHERE "createdAt"::date = d)`,
+    [from, to],
+  );
+  if (Number(dias[0].n) === 0) ok('los 31 días de la ventana tienen eventos');
+  else { bad(`${dias[0].n} días sin ningún evento: el gráfico va a tener huecos`); failures++; }
+
+  const specs = await qr.query(
+    `SELECT s.name, count(*)::int AS n FROM appointment a
+       JOIN user_specialization_professionals_specialization us ON us."userId" = a."professionalId"
+       JOIN professionals_specialization s ON s.id = us."professionalsSpecializationId"
+      WHERE a."createdAt" BETWEEN $1 AND $2 AND s.deleted = false
+      GROUP BY s.name ORDER BY n DESC LIMIT 5`,
+    [from, to],
+  );
+  info('\n  top especialidades:');
+  specs.forEach((r: any) => info(`    ${r.name.padEnd(20)} ${r.n}`));
+  if (!specs.length) { bad('el gráfico de especialidades queda vacío'); failures++; }
+
+  const links = await qr.query(
+    `SELECT status, count(*)::int AS n FROM patient_professional
+      WHERE "createdAt" BETWEEN $1 AND $2 GROUP BY status ORDER BY status`,
+    [from, to],
+  );
+  info('\n  vinculaciones: ' + links.map((r: any) => `${r.status} ${r.n}`).join(' · '));
+
+  const [cov] = await qr.query(
+    `SELECT count(*)::int AS total, count("takenChargeByUserId")::int AS tomados FROM (
+       SELECT "takenChargeByUserId" FROM appointment
+        WHERE "createdByType"='dependent' AND "createdAt" BETWEEN $1 AND $2
+       UNION ALL
+       SELECT "takenChargeByUserId" FROM med_event
+        WHERE "createdByType"='dependent' AND "createdAt" BETWEEN $1 AND $2) e`,
+    [from, to],
+  );
+  const [resp] = await qr.query(
+    `SELECT round(percentile_cont(0.5) WITHIN GROUP (ORDER BY m)::numeric, 1) AS mediana,
+            round(percentile_cont(0.9) WITHIN GROUP (ORDER BY m)::numeric, 1) AS p90,
+            count(*)::int AS muestras
+       FROM (SELECT extract(epoch FROM ("respondedAt"-"deliveredAt"))/60 m
+               FROM notification_recipients
+              WHERE action='take_charge' AND "deliveredAt" IS NOT NULL
+                AND "respondedAt" BETWEEN "deliveredAt" AND "deliveredAt" + INTERVAL '1 day'
+                AND "respondedAt" BETWEEN $1 AND $2) r`,
+    [from, to],
+  );
+  const pct = cov.total ? Math.round((cov.tomados / cov.total) * 100) : 0;
+  info(`\n  coordinación: ${cov.tomados}/${cov.total} eventos tomados a cargo (${pct}%)`);
+  info(`  tiempo de respuesta: mediana ${resp.mediana} min · p90 ${resp.p90} min · ${resp.muestras} muestras`);
+  if (!Number(resp.muestras)) { bad('el panel de tiempos de respuesta queda vacío'); failures++; }
+
+  return failures;
+}

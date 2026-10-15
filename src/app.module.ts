@@ -19,6 +19,7 @@ import { MedsEventModule } from './meds/meds-event/meds-event.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { TasksModule } from './tasks/tasks.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { GroupEventsModule } from './group-events/group-events.module';
 import { DocumentsModule } from './documents/documents.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 
@@ -43,6 +44,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     ScheduleModule.forRoot(),
     TasksModule,
     NotificationsModule,
+    GroupEventsModule,
     DocumentsModule,
     AnalyticsModule,
   ],

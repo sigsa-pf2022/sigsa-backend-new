@@ -1,4 +1,5 @@
 import {
+  IsIn,
   IsNotEmpty,
   IsEmail,
   Min,
@@ -9,8 +10,10 @@ export class ValidateUserDto {
   @IsEmail()
   email: string;
 
+  /** Qué código se valida: el de alta de cuenta o el de recuperar contraseña. */
   @IsNotEmpty()
-  field: string;
+  @IsIn(['verificationCode', 'recoveryPasswordToken'])
+  field: 'verificationCode' | 'recoveryPasswordToken';
 
   @IsNotEmpty()
   @Min(100000)

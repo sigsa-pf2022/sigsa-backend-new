@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   HttpStatus,
@@ -57,6 +58,7 @@ export class MedsEventController {
   ) {
     try {
       const user = await this.userService.getUserById(req.user.id);
+      await this.medsEventService.assertMedsLimit(user, user.premium);
       const medEvent: MedEvent = await this.medsEventService.createMedEvent(
         user,
         createMedEventDto,
@@ -64,14 +66,70 @@ export class MedsEventController {
 
       return { status: HttpStatus.CREATED, medEvent };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
-          message: 'No se pudo crear el recordatorio',
+          message: error?.message || 'No se pudo crear el recordatorio',
           status: 'error',
         },
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  /*
+   * Los endpoints de /treatments van declarados antes que @Get(':id') y
+   * @Patch(':id/...') para que el comodín no se los coma.
+   */
+
+  @Get('treatments')
+  async getTreatments(@Req() request) {
+    const user = await this.userService.getUserById(request.user.id);
+    return await this.medsEventService.getMedTreatmentsByCreator(user);
+  }
+
+  @Get('treatments/dependent/:id')
+  async getTreatmentsByDependent(@Param('id', ParseIntPipe) dependentId: number) {
+    const dependent = await this.familyGroupsService.getDependentById(dependentId);
+    if (!dependent) {
+      throw new HttpException(
+        { message: 'Dependiente no encontrado', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    return await this.medsEventService.getMedTreatmentsByCreator(dependent);
+  }
+
+  @Patch('treatments/:seriesId/cancel')
+  async cancelTreatment(@Param('seriesId') seriesId: string, @Req() request) {
+    const user = await this.userService.getUserById(request.user.id);
+    const { canceled } = await this.medsEventService.cancelTreatment(
+      seriesId,
+      user,
+      Number(request.user.id),
+    );
+    return { status: HttpStatus.OK, canceled };
+  }
+
+  @Patch('treatments/:seriesId/dependent/:dependentId/cancel')
+  async cancelTreatmentForDependent(
+    @Param('seriesId') seriesId: string,
+    @Param('dependentId', ParseIntPipe) dependentId: number,
+    @Req() request,
+  ) {
+    const dependent = await this.familyGroupsService.getDependentById(dependentId);
+    if (!dependent) {
+      throw new HttpException(
+        { message: 'Dependiente no encontrado', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    const { canceled } = await this.medsEventService.cancelTreatment(
+      seriesId,
+      dependent,
+      Number(request.user.id),
+    );
+    return { status: HttpStatus.OK, canceled };
   }
 
   @Get(':id')
@@ -97,14 +155,30 @@ export class MedsEventController {
   }
 
   @Patch(':id/cancel')
-  async cancelMedEvent(@Param('id', ParseIntPipe) id: number) {
-    await this.medsEventService.cancelMedEvent(id);
+  async cancelMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    // El id del que cancela va al historial del grupo.
+    await this.medsEventService.cancelMedEvent(id, Number(request.user.id));
     return { status: HttpStatus.OK };
   }
 
+  /**
+   * Borrado real, para el recordatorio cargado por error. Si la toma es parte
+   * de un tratamiento se borra la serie completa.
+   */
+  @Delete(':id')
+  async deleteMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    return this.medsEventService.deleteMedEvent(id, Number(request.user.id));
+  }
+
   @Patch(':id/confirm')
-  async confirmMedEvent(@Param('id', ParseIntPipe) id: number) {
-    await this.medsEventService.confirmMedEvent(id);
+  async confirmMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    await this.medsEventService.confirmMedEvent(id, Number(request.user.id));
+    return { status: HttpStatus.OK };
+  }
+
+  @Patch(':id/skip')
+  async skipMedEvent(@Param('id', ParseIntPipe) id: number, @Req() request) {
+    await this.medsEventService.skipMedEvent(id, Number(request.user.id));
     return { status: HttpStatus.OK };
   }
 
@@ -123,15 +197,20 @@ export class MedsEventController {
           HttpStatus.NOT_FOUND,
         );
       }
+      // El premium es del usuario logueado, que es quien carga el recordatorio.
+      const user = await this.userService.getUserById(req.user.id);
+      await this.medsEventService.assertMedsLimit(dependent, user?.premium);
       const medEvent: MedEvent = await this.medsEventService.createMedEvent(
         dependent,
         createMedEventDto,
+        Number(req.user.id),
       );
       return { status: HttpStatus.CREATED, medEvent };
     } catch (error) {
+      if (error instanceof HttpException) throw error;
       throw new HttpException(
         {
-          message: 'No se pudo crear el recordatorio para dependiente',
+          message: error?.message || 'No se pudo crear el recordatorio para dependiente',
           status: 'error',
         },
         HttpStatus.BAD_REQUEST,

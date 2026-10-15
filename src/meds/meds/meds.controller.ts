@@ -8,12 +8,15 @@ import {
   Post,
   Put,
   Req,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { CreateMedsDto } from './dto/create-meds.dto';
 import { UpdateMedsDto } from './dto/update-meds.dto';
 import { MedsService } from './meds.service';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 
 @Controller('meds')
 export class MedsController {
@@ -23,16 +26,26 @@ export class MedsController {
   async getAllMeds() {
     return await this.medsService.getAllMeds();
   }
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get()
   async getMeds(@Req() request) {
     const res = await this.medsService.getMeds(
       request.query.page,
       request.query.take,
+      {
+        name: request.query.name,
+        drug: request.query.drug,
+        type: request.query.type,
+        shape: request.query.shape,
+        measurementUnit: request.query.measurementUnit,
+        deleted: request.query.deleted,
+      },
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], count: res[1], total: res[1] };
   }
   // @UseGuards(RoleGuard(Role.Admin))
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
+  @UseGuards(RoleGuard([Role.Admin]))
   @Post('')
   async createMed(
     @Req() request,
@@ -52,6 +65,7 @@ export class MedsController {
     return this.medsService.createMed(createMedsDto);
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/:id')
   async getMedById(@Req() request) {
     const med = await this.medsService.getMedById(request.params.id);
@@ -64,6 +78,7 @@ export class MedsController {
     };
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Put('/:id')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async updateMed(@Req() request, @Body() updateMedsDto: UpdateMedsDto) {

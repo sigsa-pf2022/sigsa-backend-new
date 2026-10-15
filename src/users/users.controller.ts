@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Patch,
   Post,
   UseGuards,
   UsePipes,
@@ -18,8 +19,12 @@ import {
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { MailService } from 'src/mail/mail.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { ValidateUserDto } from './dto/validate-user.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { UsersService } from './users.service';
+import { Role } from 'src/roles/enums/role.enum';
+import RoleGuard from 'src/roles/guards/role.guards';
 
 @Controller('users')
 export class UsersController {
@@ -49,40 +54,44 @@ export class UsersController {
     };
   }
 
+  // Antes los dos endpoints hacían `return error` en el catch: la excepción
+  // salía como cuerpo de una respuesta 201 y la app avanzaba igual.
   @Post('/recovery-password-email')
   async recoveryPasswordEmail(@Body() data) {
-    try {
-      const user = await this.userService.getUserByEmail(data.email);
-      if (!user) {
-        throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
-      }
-      await this.userService
-        .setRecoveryPasswordToken(user)
-        .then(() => this.mailService.sendUserRecoveryPassword(user));
-      return {
-        status: HttpStatus.OK,
-        message: 'Email enviado',
-      };
-    } catch (error) {
-      return error;
+    const user = await this.userService.getUserByEmail(data?.email ?? '');
+    if (!user) {
+      throw new HttpException(
+        { message: 'No existe una cuenta con ese email', status: 'error' },
+        HttpStatus.NOT_FOUND,
+      );
     }
+    await this.userService.setRecoveryPasswordToken(user);
+    await this.mailService.sendUserRecoveryPassword(user);
+    return {
+      status: HttpStatus.OK,
+      message: 'Email enviado',
+    };
   }
 
   @Post('/reset-password')
-  async resetPassword(@Body() data) {
-    try {
-      const user = await this.userService.getUserByEmail(data.email);
-      if (!user) {
-        throw new HttpException('Email inválido', HttpStatus.BAD_REQUEST);
-      }
-      await this.userService.resetPassword(data, user);
-      return {
-        status: HttpStatus.OK,
-        message: 'Contraseña reestablecida correctamente',
-      };
-    } catch (error) {
-      return error;
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async resetPassword(@Body() data: ResetPasswordDto) {
+    const user = await this.userService.getUserByEmail(data.email);
+    if (
+      !user ||
+      user.recoveryPasswordToken == null ||
+      user.recoveryPasswordToken !== Number(data.code)
+    ) {
+      throw new HttpException(
+        { message: 'El código es inválido o ya fue usado', status: 'error' },
+        HttpStatus.BAD_REQUEST,
+      );
     }
+    await this.userService.resetPassword(data, user);
+    return {
+      status: HttpStatus.OK,
+      message: 'Contraseña restablecida correctamente',
+    };
   }
 
   @Post('/validate')
@@ -95,12 +104,14 @@ export class UsersController {
       throw new HttpException(
         {
           status: 'invalid-code',
-          message: 'Codigo de verificacion de correo incorrecto.',
+          message: 'El código es incorrecto.',
         },
         HttpStatus.BAD_REQUEST,
       );
     } else {
-      this.userService.updateValidateStatus(user.id);
+      // Con await: si respondemos antes de persistir la verificación, un login
+      // inmediato encuentra el usuario todavía sin verificar y lo rebota.
+      await this.userService.updateValidateStatus(user.id);
       return { status: HttpStatus.OK, message: 'Codigo correcto' };
     }
   }
@@ -111,13 +122,16 @@ export class UsersController {
     return this.userService.getUserById(Number(req.user.id));
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('all')
   async getUsers(@Request() request) {
     const res = await this.userService.getUsers(
       request.query.page,
       request.query.take,
+      request.query.firstName,
+      request.query.lastName,
     );
-    return { data: res[0], count: res[1] };
+    return { data: res[0], count: res[1], total: res[1] };
   }
 
   @Get('/status')
@@ -136,6 +150,7 @@ export class UsersController {
     return user.emailVerified;
   }
 
+  @UseGuards(RoleGuard([Role.Admin]))
   @Get('/monthly-quantity')
   async getMonthlyUserQuantity() {
     const today = new Date();
@@ -151,6 +166,17 @@ export class UsersController {
       );
     }
     return userPerMonth;
+  }
+
+  /**
+   * "Mis datos": el usuario edita sus propios datos básicos.
+   * El id sale del token, nunca del body.
+   */
+  @UseGuards(JwtAuthGuard)
+  @Patch('/me')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateMe(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+    return this.userService.updateUser(Number(req.user.id), updateUserDto);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -70,6 +70,26 @@ export class NotificationsPushService implements OnModuleInit {
           body: payload.body,
         },
         data: payload.data || {},
+        // Android muestra el banner ("heads-up") según la importancia del canal
+        // al que va la notificación, y ese canal lo elige este `channelId`. Sin
+        // el bloque, el push caía en el canal fallback de Firebase, de
+        // importancia 3: sonaba pero no se dibujaba arriba, había que abrir el
+        // centro de notificaciones para verlo.
+        //
+        // `priority: 'high'` es lo que además le pide a FCM entregarlo en el
+        // momento y no diferirlo si el equipo está en reposo.
+        //
+        // El id tiene que coincidir con el canal que crea la app
+        // (`NOTIFICATION_CHANNEL_ID` en local-notifications.service.ts) y con la
+        // meta-data `default_notification_channel_id` del AndroidManifest.
+        android: {
+          priority: 'high',
+          notification: {
+            channelId: 'sigsa_reminders',
+            priority: 'high',
+            defaultSound: true,
+          },
+        },
       };
 
       const response = await admin.messaging().sendEachForMulticast(message);

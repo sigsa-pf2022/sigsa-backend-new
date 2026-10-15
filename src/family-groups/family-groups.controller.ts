@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -13,11 +14,14 @@ import {
   Query,
   Req,
   UseGuards,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { JwtAuthGuard } from 'src/auth/guards/jwt.guard';
 import { Role } from 'src/roles/enums/role.enum';
 import RoleGuard from 'src/roles/guards/role.guards';
 import { UsersService } from 'src/users/users.service';
+import { UpdateGroupPhotoDto } from './dto/update-group-photo.dto';
 import { FamilyGroup } from './entities/family-group.entity';
 import { FamilyGroupsService } from './family-groups.service';
 
@@ -36,13 +40,21 @@ export class FamilyGroupsController {
       const { name, members, ...dependent } = createFamilyGroupDto;
       const userMembers = [];
 
-      const existingDnis = members.map((member) => member.dni);
+      const invitados = Array.isArray(members) ? members : [];
+      const existingDnis = invitados.map((member) => member.dni);
       if (!existingDnis.includes(user.dni)) {
         userMembers.push(user);
       }
 
-      for (const member of members) {
+      for (const member of invitados) {
         const foundUser = await this.userService.getFullUserByDni(member.dni);
+        // Sin esta guarda, un DNI que no corresponde a ningún usuario hacía
+        // reventar el alta entera con un error irreconocible.
+        if (!foundUser) {
+          throw new BadRequestException(
+            `No encontramos un usuario con el DNI ${member.dni}`,
+          );
+        }
         if (!userMembers.find((u) => u.id === foundUser.id)) {
           userMembers.push(foundUser);
         }
@@ -57,8 +69,17 @@ export class FamilyGroupsController {
         );
       return { status: HttpStatus.CREATED, id: newFamilyGroup.id };
     } catch (error) {
+      // El mensaje genérico dejaba al cliente sin saber qué corregir, y sin
+      // rastro en el servidor la causa había que adivinarla.
+      console.error('Error creando el grupo familiar:', error?.message || error);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       throw new HttpException(
-        { message: 'No se pudo crear el grupo', status: 'error' },
+        {
+          message: 'No se pudo crear el grupo. Revisá los datos del dependiente.',
+          status: 'error',
+        },
         HttpStatus.BAD_REQUEST,
       );
     }
@@ -186,11 +207,28 @@ export class FamilyGroupsController {
       }
       return { status: HttpStatus.OK, message: 'Miembro eliminado correctamente' };
     } catch (error) {
+      if (error instanceof ForbiddenException) {
+        throw new HttpException(
+          { message: error.message, status: 'error' },
+          HttpStatus.FORBIDDEN,
+        );
+      }
       throw new HttpException(
         { message: 'Error al eliminar el miembro del grupo', status: 'error' },
         HttpStatus.BAD_REQUEST,
       );
     }
+  }
+
+  @Patch('/:groupId/photo')
+  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  async updateGroupPhoto(
+    @Param('groupId') groupId: string,
+    @Body() dto: UpdateGroupPhotoDto,
+    @Req() request,
+  ) {
+    const user = await this.userService.getUserById(request.user.id);
+    return this.familyGroupService.updateGroupPhoto(parseInt(groupId), dto.photo, user);
   }
 
   @Post('/:groupId/members')

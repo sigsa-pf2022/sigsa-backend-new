@@ -1,15 +1,26 @@
 import { LessThan } from 'typeorm';
 import { subDays } from 'date-fns';
-import { Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationsService } from 'src/notifications/notifications.service';
+import { NotificationType } from 'src/notifications/enums/notification-type.enum';
 import { FamilyGroupsService } from 'src/family-groups/family-groups.service';
+import { GroupEventsService } from 'src/group-events/group-events.service';
+import { GroupEventAction, GroupEventTargetType } from 'src/group-events/enums/group-event-action.enum';
 import { EventStatus } from 'src/events/entities/notification-event.entity';
 import { Professionals } from 'src/professionals/entities/my-professional.entity';
 import { ProfessionalUser } from 'src/professionals/entities/professional-user.entity';
 import { User } from 'src/users/entities/user.entity';
 import { Dependent } from 'src/family-groups/entities/dependent.entity';
-import { In, Not, Raw, Repository } from 'typeorm';
+import { In, Not, Repository } from 'typeorm';
+import { sinceStartOfToday, UPCOMING_FETCH_LIMIT } from 'src/events/utils/upcoming-window';
+import { sortByRelevance } from 'src/events/utils/sort-by-relevance';
+import { assertFreePlanLimit, FREE_PLAN_LIMITS } from 'src/common/plan-limits';
 import { Appointment } from './appointment.entity';
 import { CreateAppointmentDTO } from './dto/create-appointment.dto';
 
@@ -20,6 +31,7 @@ export class AppointmentsService {
     private appointmentRepository: Repository<Appointment>,
     private readonly notificationsService: NotificationsService,
     private readonly familyGroupsService: FamilyGroupsService,
+    private readonly groupEventsService: GroupEventsService,
   ) {}
 
   // Helper para determinar el tipo de creador
@@ -33,10 +45,24 @@ export class AppointmentsService {
     }
   }
 
+  /** Tope de turnos activos del plan gratuito, contado por creador. */
+  async assertAppointmentsLimit(creator: User | Dependent, premium: boolean) {
+    const active = await this.appointmentRepository.count({
+      where: {
+        createdById: creator.id,
+        createdByType: this.getCreatorType(creator),
+        status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
+        date: sinceStartOfToday(),
+      },
+    });
+    assertFreePlanLimit(premium, active, FREE_PLAN_LIMITS.appointments, 'turnos activos');
+  }
+
   createAppointmentWithProfessionalUser(
     appointment: CreateAppointmentDTO,
     creator: User | Dependent,
     professional: ProfessionalUser,
+    actorUserId?: number,
   ) {
     const newAppointment = this.appointmentRepository.create({
       createdById: creator.id,
@@ -46,7 +72,7 @@ export class AppointmentsService {
       professional,
     });
     return this.appointmentRepository.save(newAppointment).then(async saved => {
-      await this.tryCreateNotificationForAppointment(saved, creator);
+      await this.tryCreateNotificationForAppointment(saved, creator, actorUserId);
       return saved;
     });
   }
@@ -55,6 +81,7 @@ export class AppointmentsService {
     appointment: CreateAppointmentDTO,
     creator: User | Dependent,
     myProfessional: Professionals,
+    actorUserId?: number,
   ) {
     const newAppointment = this.appointmentRepository.create({
       createdById: creator.id,
@@ -64,12 +91,12 @@ export class AppointmentsService {
       description: appointment.description,
     });
     const saved = await this.appointmentRepository.save(newAppointment);
-    await this.tryCreateNotificationForAppointment(saved, creator);
+    await this.tryCreateNotificationForAppointment(saved, creator, actorUserId);
     return saved;
   }
 
-  getAppointmentsByUser(user: User) {
-    return this.appointmentRepository.find({
+  async getAppointmentsByUser(user: User) {
+    const appointments = await this.appointmentRepository.find({
       select: {
         professional: {
           id: true,
@@ -84,8 +111,9 @@ export class AppointmentsService {
       },
       where: {
         createdById: user.id,
-        createdByType: 'user',
-        status: Not(EventStatus.CANCELED),
+        // Un profesional también tiene eventos propios y se guardan como
+        // 'professional': con 'user' fijo no le aparecían.
+        createdByType: this.getCreatorType(user),
       },
       relations: {
         myProfessional: true,
@@ -95,10 +123,12 @@ export class AppointmentsService {
         date: 'DESC',
       },
     });
+    // Próximos primero y después los pasados (ver sortByRelevance).
+    return sortByRelevance(appointments);
   }
 
-  getAppointmentsByDependent(dependent: Dependent) {
-    return this.appointmentRepository.find({
+  async getAppointmentsByDependent(dependent: Dependent) {
+    const appointments = await this.appointmentRepository.find({
       select: {
         professional: {
           id: true,
@@ -110,20 +140,26 @@ export class AppointmentsService {
           firstName: true,
           lastName: true,
         },
+        takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
       },
       where: {
         createdById: dependent.id,
         createdByType: 'dependent',
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         myProfessional: true,
         professional: true,
+        // Para mostrar "X se hizo cargo" y "X canceló" sin otra consulta.
+        takenChargeBy: true,
+        canceledBy: true,
       },
       order: {
         date: 'DESC',
       },
     });
+    // Próximos primero y después los pasados (ver sortByRelevance).
+    return sortByRelevance(appointments);
   }
 
   getNextAppointmentsByUser(user: User) {
@@ -142,9 +178,11 @@ export class AppointmentsService {
       },
       where: {
         createdById: user.id,
-        createdByType: 'user',
+        // Un profesional también tiene eventos propios y se guardan como
+        // 'professional': con 'user' fijo no le aparecían.
+        createdByType: this.getCreatorType(user),
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         myProfessional: true,
@@ -153,7 +191,7 @@ export class AppointmentsService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
 
@@ -175,7 +213,7 @@ export class AppointmentsService {
         createdById: dependent.id,
         createdByType: 'dependent',
         status: In([EventStatus.CREATED, EventStatus.CONFIRMED]),
-        date: Raw((alias) => `${alias} > NOW()`),
+        date: sinceStartOfToday(),
       },
       relations: {
         myProfessional: true,
@@ -184,7 +222,7 @@ export class AppointmentsService {
       order: {
         date: 'ASC',
       },
-      take: 3,
+      take: UPCOMING_FETCH_LIMIT,
     });
   }
 
@@ -206,7 +244,6 @@ export class AppointmentsService {
       where: {
         createdById: creator.id,
         createdByType: this.getCreatorType(creator),
-        status: Not(EventStatus.CANCELED),
       },
       relations: {
         myProfessional: true,
@@ -231,20 +268,200 @@ export class AppointmentsService {
           firstName: true,
           lastName: true,
         },
+        takenChargeBy: { id: true, firstName: true, lastName: true },
+        canceledBy: { id: true, firstName: true, lastName: true },
       },
       where: { id },
-      relations: { myProfessional: true, professional: true },
+      relations: {
+        myProfessional: true,
+        professional: true,
+        // Para mostrar "X se hizo cargo" y "X canceló" sin otra consulta.
+        takenChargeBy: true,
+        canceledBy: true,
+      },
     });
   }
 
-  cancelAppointment(id: number) {
-    return this.appointmentRepository.update(
+  /**
+   * Cancela un turno y deja constancia de quién lo hizo.
+   *
+   * `actorUserId` viene del token; si falta es porque canceló el cron de turnos
+   * vencidos, y entonces el historial lo muestra como vencimiento y no como una
+   * decisión de alguien del grupo.
+   */
+  async cancelAppointment(id: number, actorUserId?: number, automatic = false) {
+    const appointment = await this.appointmentRepository.findOne({
+      where: { id },
+      relations: { professional: true, myProfessional: true },
+    });
+
+    const result = await this.appointmentRepository.update(
       { id },
       {
         status: EventStatus.CANCELED,
         updatedAt: new Date(),
+        // Queda registrado en el evento, no sólo en el historial del grupo:
+        // ahora el turno cancelado sigue visible y tiene que decir quién fue.
+        canceledByUserId: actorUserId ?? null,
+        canceledAt: new Date(),
       },
     );
+
+    if (appointment) {
+      // Sin esto el scheduler seguía despachando el recordatorio de un turno
+      // que ya no existe: sonaba el push de algo cancelado.
+      await this.cancelNotificationsFor([id]);
+      await this.logCancellation(appointment, actorUserId, automatic);
+    }
+
+    return result;
+  }
+
+  /**
+   * Borra el turno de verdad. Es para lo que se cargó por error: si el turno
+   * existió y se suspendió, va `cancelAppointment`, que deja rastro visible.
+   *
+   * Sólo mientras nadie se haya hecho cargo. Si un integrante ya se comprometió,
+   * el grupo coordinó sobre ese turno y hacerlo desaparecer de la vista de todos
+   * sería peor que dejarlo cancelado.
+   */
+  async deleteAppointment(id: number, actorUserId?: number) {
+    const appointment = await this.appointmentRepository.findOne({
+      where: { id },
+      relations: { professional: true, myProfessional: true },
+    });
+    if (!appointment) {
+      throw new NotFoundException('El turno no existe');
+    }
+    if (appointment.takenChargeByUserId) {
+      throw new ConflictException(
+        'Alguien ya se hizo cargo de este turno. Cancelalo en vez de borrarlo.',
+      );
+    }
+    await this.assertCanDelete(
+      appointment.createdByType,
+      appointment.createdById,
+      actorUserId,
+    );
+
+    // El historial queda ANTES del borrado: `group_event_log` guarda los nombres
+    // ya resueltos y no tiene foreign key al evento, así que sobrevive.
+    await this.logDeletion(appointment, actorUserId);
+
+    // Y las notificaciones también antes, o el scheduler despacharía el push de
+    // un turno que ya no existe.
+    try {
+      await this.notificationsService.deleteForReferences(
+        [NotificationType.APPOINTMENT, NotificationType.EVENT_TAKEN_CHARGE, NotificationType.EVENT_DECLINED],
+        [id],
+      );
+    } catch (err) {
+      console.error('Error borrando notificaciones del turno:', err?.message || err);
+    }
+
+    await this.appointmentRepository.remove(appointment);
+    return { deleted: true };
+  }
+
+
+  /**
+   * Quién puede borrar. Hoy ningún endpoint de cancelar o editar valida nada
+   * —cualquier usuario autenticado puede tocar el evento de cualquiera sabiendo
+   * el id—, pero el borrado es destructivo y no se deshace, así que al menos
+   * este no se suma al agujero.
+   */
+  private async assertCanDelete(
+    createdByType: string,
+    createdById: number,
+    userId: number,
+  ) {
+    if (createdByType === 'dependent') {
+      const group = await this.familyGroupsService.findByDependentId(createdById);
+      if (!group) throw new ForbiddenException('No podés borrar este evento');
+      await this.groupEventsService.assertMembership(group.id, userId);
+      return;
+    }
+    if (createdById !== userId) {
+      throw new ForbiddenException('No podés borrar este evento');
+    }
+  }
+
+  /** Deja constancia de que el turno se borró, con los datos ya resueltos. */
+  private async logDeletion(appointment: Appointment, actorUserId?: number) {
+    try {
+      if (appointment.createdByType !== 'dependent' || !appointment.createdById) return;
+
+      const group = await this.familyGroupsService.findByDependentId(appointment.createdById);
+      if (!group) return;
+
+      const professional = appointment.myProfessional || appointment.professional;
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId: actorUserId ?? null,
+        action: GroupEventAction.EVENT_DELETED,
+        targetType: GroupEventTargetType.APPOINTMENT,
+        targetId: appointment.id,
+        payload: {
+          professionalName: professional
+            ? `${professional.firstName || ''} ${professional.lastName || ''}`.trim()
+            : null,
+          description: appointment.description,
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: appointment.date,
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando el borrado del turno:', err?.message || err);
+    }
+  }
+
+  private async cancelNotificationsFor(appointmentIds: number[]) {
+    try {
+      await this.notificationsService.cancelForReferences(
+        NotificationType.APPOINTMENT,
+        appointmentIds,
+      );
+    } catch (err) {
+      console.error('Error cancelando notificaciones de turno:', err?.message || err);
+    }
+  }
+
+  /** Registra la cancelación en el historial del grupo del dependiente. */
+  private async logCancellation(
+    appointment: Appointment,
+    actorUserId?: number,
+    automatic = false,
+  ) {
+    try {
+      if (appointment.createdByType !== 'dependent' || !appointment.createdById) return;
+
+      const group = await this.familyGroupsService.findByDependentId(appointment.createdById);
+      if (!group) return;
+
+      const professional = appointment.myProfessional || appointment.professional;
+      await this.groupEventsService.log({
+        groupId: group.id,
+        actorUserId: actorUserId ?? null,
+        action: GroupEventAction.EVENT_CANCELED,
+        targetType: GroupEventTargetType.APPOINTMENT,
+        targetId: appointment.id,
+        payload: {
+          professionalName: professional
+            ? `${professional.firstName || ''} ${professional.lastName || ''}`.trim()
+            : null,
+          description: appointment.description,
+          dependentName: group.dependent
+            ? `${group.dependent.firstName} ${group.dependent.lastName}`.trim()
+            : null,
+          eventDate: appointment.date,
+          automatic,
+        },
+      });
+    } catch (err) {
+      console.error('Error registrando la cancelación del turno:', err?.message || err);
+    }
   }
 
   confirmAppointment(id: number) {
@@ -291,12 +508,10 @@ export class AppointmentsService {
         date: LessThan(oneDayAgo),
       },
     });
-    if (appointmentsToCancel.length) {
-      for (const appt of appointmentsToCancel) {
-        appt.status = EventStatus.CANCELED;
-        appt.updatedAt = new Date();
-      }
-      await this.appointmentRepository.save(appointmentsToCancel);
+    // Se cancelan de a uno para que cada turno deje su entrada en el historial
+    // del grupo: si no, un turno desaparecía de la lista sin ningún rastro.
+    for (const appt of appointmentsToCancel) {
+      await this.cancelAppointment(appt.id, undefined, true);
     }
     return appointmentsToCancel.length;
   }
@@ -306,7 +521,11 @@ export class AppointmentsService {
    * - Si el creador es un Dependent: busca el FamilyGroup que tenga ese dependent.
    * - Si el creador es un User: crea notificación individual (sin groupId) apuntando sólo al usuario.
    */
-  private async tryCreateNotificationForAppointment(appointment: Appointment, creator: User | Dependent) {
+  private async tryCreateNotificationForAppointment(
+    appointment: Appointment,
+    creator: User | Dependent,
+    actorUserId?: number,
+  ) {
     try {
       // Determinar si es dependiente o usuario
       const isDependent = creator instanceof Dependent;
@@ -336,7 +555,18 @@ export class AppointmentsService {
       }
 
       // Determinar leadMinutes (constante por ahora 15)
-      const leadMinutes = 15;
+      // ▼▼▼ DEMO — REVERTIR DESPUÉS ▼▼▼
+      // Mismo truco que en notifications.service.ts (ver la nota larga ahí): el
+      // push del turno sale apenas se crea, en vez de 15 minutos antes de la
+      // hora del turno.
+      //
+      // Para volver atrás: borrar este bloque y descomentar la línea de abajo.
+      // const leadMinutes = 15;
+      const leadMinutes = 60;
+      // Antes era un año, y en un tratamiento todas las tomas caían en el
+      // pasado y salían juntas en el mismo barrido. Con una hora, lo que se
+      // carga para la próxima hora dispara al toque y el resto a su momento.
+      // ▲▲▲ DEMO — REVERTIR DESPUÉS ▲▲▲
 
       // Payload simple (podemos mejorar luego con nombres de profesional)
       const professional = appointment.myProfessional || appointment.professional;
@@ -353,8 +583,25 @@ export class AppointmentsService {
           professionalName,
           description: appointment.description,
           dependentName,
+          // El front lo necesita para volver al evento desde la push.
+          dependentId: isDependent ? creator.id : null,
         }
       });
+
+      if (groupId) {
+        await this.groupEventsService.log({
+          groupId,
+          actorUserId: actorUserId ?? null,
+          action: GroupEventAction.EVENT_CREATED,
+          targetType: GroupEventTargetType.APPOINTMENT,
+          targetId: appointment.id,
+          payload: {
+            professionalName,
+            dependentName,
+            eventDate: appointment.date,
+          },
+        });
+      }
     } catch (err) {
       // Log controlado para no romper flujo de creación de turno
       console.error('Error creando notificación de turno:', err?.message || err);

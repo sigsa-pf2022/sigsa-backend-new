@@ -1,6 +1,7 @@
 import { Get, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { boolFilter, buildWhere, paginate, textFilter } from 'src/common/list-query';
 import { CreateMedsShapeDto } from './dto/create-meds-shape.dto';
 import { MedsShape } from './meds-shape.entity';
 
@@ -16,10 +17,13 @@ export class MedsShapeService {
       order: { name: 'ASC' },
     });
   }
-  async getShapes(page, quantity) {
+  async getShapes(page, quantity, deleted?: unknown, name?: string) {
     return this.medsShapeRepository.findAndCount({
-      take: quantity,
-      skip: page * quantity,
+      where: buildWhere({
+        deleted: boolFilter(deleted),
+        name: textFilter(name),
+      }),
+      ...paginate(page, quantity),
       order: { name: 'ASC' },
     });
   }

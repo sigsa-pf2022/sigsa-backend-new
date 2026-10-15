@@ -34,4 +34,42 @@ export abstract class NotificationEvent {
 
   @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
   createdAt: Date;
+
+  /**
+   * Integrante del grupo que se hizo cargo de llevar a cabo el evento del
+   * dependiente (dar el medicamento, llevarlo al turno). Null mientras nadie
+   * lo tomó. Vive en la base para que lo hereden MedEvent, Appointment y
+   * MedicalDocument por igual.
+   */
+  @Column({ nullable: true })
+  takenChargeByUserId: number | null;
+
+  /**
+   * Misma columna que `takenChargeByUserId`, como relación, para poder traer
+   * el nombre de quien se hizo cargo sin una consulta aparte.
+   */
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'takenChargeByUserId' })
+  takenChargeBy: User | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  takenChargeAt: Date | null;
+
+  /**
+   * Quién canceló el evento. Espeja a `takenChargeBy` porque cumple el mismo
+   * papel: los eventos cancelados dejaron de ocultarse de los listados, así que
+   * el grupo tiene que poder ver quién dio de baja el turno del dependiente, no
+   * sólo que alguien lo hizo.
+   *
+   * Null también cuando canceló el sistema (el parámetro `automatic`).
+   */
+  @Column({ nullable: true })
+  canceledByUserId: number | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'canceledByUserId' })
+  canceledBy: User | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  canceledAt: Date | null;
 }
