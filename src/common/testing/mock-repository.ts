@@ -14,6 +14,7 @@ export type MockRepository = {
     | 'save'
     | 'update'
     | 'remove'
+    | 'delete'
     | 'createQueryBuilder']: jest.Mock;
 } & { manager?: any };
 
@@ -60,6 +61,7 @@ export function mockRepository(): MockRepository {
     save: jest.fn(async (entity) => entity),
     update: jest.fn(async () => ({ affected: 1 })),
     remove: jest.fn(async (entity) => entity),
+    delete: jest.fn(async () => ({ affected: 1 })),
     createQueryBuilder: jest.fn(() => mockQueryBuilder()),
   };
 }
